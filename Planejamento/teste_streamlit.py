@@ -5,6 +5,7 @@ import tempfile
 
 st.set_page_config(page_title="GBS - GPHIDRO BathyScape", page_icon=":ocean:", layout="wide")
 
+
 def calculate(max_length, min_length, average_depth, sonar_range, sound_speed, beam_width, selected_option):
     try:
         # defining standard values

@@ -25,6 +25,7 @@ def line_spacing(area, max_length, min_length, selected_option, average_depth):
     km = max_length / 1000
     hectares = area / 10000
 
+
     if selected_option == 'Normam':
 
         reg_line_spacing = min(3 * average_depth, 25)

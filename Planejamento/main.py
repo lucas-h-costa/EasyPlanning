@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import Canvas, messagebox
 import numpy as np
 from tkinter import PhotoImage
-import mbes
 
 
 def calculate():
