@@ -7,7 +7,7 @@ import geopandas as gpd
 
 
 
-st.set_page_config(page_title="GBS - GPHIDRO BathyScape", page_icon=":ocean:", layout="wide")
+st.set_page_config(page_title="GBS - GPHIDRO BathyScape", page_icon="icon.png", layout="wide")
 
 
 def ajuda():
@@ -21,7 +21,7 @@ def ajuda():
 def sobre():
     st.write("### Sobre")
     st.info("BathyScape é uma aplicação web para planejamento de campanhas batimétricas. "
-             "Desenvolvido pelo Grupo de Pesquisa em Hidrografia - GPHIDRO. "
+             "Desenvolvido por Lucas Costa (lucas.h.costa@ufv.br)  - Grupo de Pesquisa em Hidrografia - GPHIDRO. "
              "Para mais informações, acesse: [GPHIDRO](https://gphidro.com.br/).")
 
 
