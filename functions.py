@@ -5,6 +5,7 @@ import streamlit as st
 import geopandas as gpd
 import pandas as pd
 import zipfile
+import rarfile
 import tempfile
 import os
 import pyproj
@@ -216,6 +217,10 @@ def extract_files(uploaded_file, temp_dir):
     if uploaded_file.name.endswith('.zip'):
         with zipfile.ZipFile(uploaded_file, 'r') as zip_ref:
             zip_ref.extractall(temp_dir)
+    elif uploaded_file.name.endswith('.rar'):
+        with rarfile.RarFile(uploaded_file, 'r') as rar_ref:
+            rar_ref.extractall(temp_dir)
+
     else:
         raise ValueError("Formato de arquivo não suportado. Por favor, envie um arquivo ZIP.")
 
