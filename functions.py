@@ -61,7 +61,8 @@ def calculate_velocity(sonar_footprint, ping_rate_hz):
     return velocity_m_s, velocity_knots
 
 
-def calculate_survey_time(reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines,min_length,max_length, nav_speed, contour_length):
+def calculate_survey_time(reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines,min_length,
+                          max_length, nav_speed, contour_length):
     """Calcula o tempo estimado para o levantamento das linhas."""
 
     nav_speed_ms = nav_speed / 1.944
@@ -264,6 +265,26 @@ def calculate_axes_lengths(shapefile_path):
 
     return axes_info
 
+def plot_shapefile_with_shp_axes(shapefile_path, shp_file_path):
+    gdf = gpd.read_file(shapefile_path)
+    gdf_shp = gpd.read_file(shp_file_path)
+
+    gdf = ensure_utm_crs(gdf)
+    gdf_shp = ensure_utm_crs(gdf_shp)
+
+    fig, ax = plt.subplots(figsize=(10, 10))
+
+    gdf.plot(ax=ax, color='lightblue', edgecolor='black')
+    gdf_shp.boundary.plot(ax=ax, color='red', linewidth=1, label='Eixos do arquivo .shp')
+    gdf.boundary.plot(ax=ax, color='purple', linewidth=1, label='Contorno do reservatório')
+
+    plt.title('Visualização do Arquivo com o eixo')
+    plt.xlabel('Longitude')
+    plt.ylabel('Latitude')
+    plt.legend()
+    plt.grid(False)
+    st.pyplot(fig)
+
 
 def plot_shapefile_with_axes(shapefile_path):
     """Plota o shapefile com os eixos norte-sul e leste-oeste passando pelo centróide."""
@@ -372,7 +393,8 @@ def plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing):
         plt.grid(False)
         st.pyplot(fig)
 
-        return temp_dir, [grid_lines_shapefile_path, contour_shapefile_path]  # Retorna o diretório e os caminhos dos arquivos shapefiles
+        return temp_dir, [grid_lines_shapefile_path, contour_shapefile_path] 
+     # Retorna o diretório e os caminhos dos arquivos shapefiles
     except Exception as e:
         st.error(f"Erro ao criar shapefiles: {e}")
         return None, None

@@ -20,9 +20,10 @@ def ajuda():
 
 def sobre():
     st.write("### Sobre")
-    st.info("BathyScape é uma aplicação web para planejamento de campanhas batimétricas. "
-             "Desenvolvido por Lucas Costa (lucas.h.costa@ufv.br)  - Grupo de Pesquisa em Hidrografia - GPHIDRO. "
-             "Para mais informações, acesse: [GPHIDRO](https://gphidro.com.br/).")
+    st.info("BathyScape é uma aplicação web para planejamento de campanhas batimétricas. \n"
+             "Desenvolvido por Lucas Costa (lucas.h.costa@ufv.br)  - Grupo de Pesquisa em Hidrografia - GPHIDRO. \n"
+             "Para mais informações, acesse: [GPHIDRO](https://gphidro.com.br/).\n o upload de arquivos de eixo ainda está em desenvolvimento")
+    
 
 
 def calculate(max_length, min_length,area, average_depth, sonar_range, sound_speed, beam_width, selected_option, frequency,
@@ -148,10 +149,59 @@ with st.sidebar:
         st.download_button(label="Baixar Relatório", data=pdf_file, file_name="Relatório.pdf", mime="application/pdf")
 
     file = st.file_uploader("Upload de arquivo SHP ", type=['zip', 'rar'])
+    axe = st.file_uploader("upload do eixo do reservatório", type=['zip', 'rar'])
+  
 
     if file:
+        if axe:    #calculating with axe provided by user  ####################################################################
+          with tempfile.TemporaryDirectory() as temp_dir:
+         
+            extracted_files = f.extract_files(axe, temp_dir)
+            extracted_shp = f.extract_files(file, temp_dir)
+            shapefiles = [f for f in extracted_shp if f.endswith('.shp')]
+            shp_files = [f for f in extracted_files if f.endswith('.shp')]
+            if not shp_files or not shapefiles:
+                st.error("O arquivo comprimido não contém um shapefile (.shp).")
+            else:
+                shp_file_path = shp_files[0]
+                shapefile_path = shapefiles[0]
+                gdf_axe = gpd.read_file(shp_file_path)
+                info = gdf_axe.geometry.length.sum()
+                st.write(info)
+                
+                gdf = gpd.read_file(shapefile_path)
+                total_area = gdf.geometry.area.sum()
+                gdf_contour = gdf.copy()
+                gdf_contour['geometry'] = gdf_contour.buffer(-10)
+                contour_length = gdf_contour.boundary.length.sum()
+                st.write(f"Área total calculada: {total_area:.2f} m^2")
+                f.plot_shapefile_with_shp_axes(shapefile_path, shp_file_path)
+                with col2:
+                    if st.button("Calcular com arquivo SHP"):
+                        results, sonar_footprint, pdf_file = calculate(float(info), float(info), total_area,
+                                                                       average_depth, sonar_range, sound_speed,
+                                                                       beam_width, selected_option, frequency,
+                                                                       reg_line_spacing, cross_line_spacing, scale, contour_length)
+                        if results:
+                            reg_line_spacing = float(results.get('Espaçamento das linhas regulares de sondagem').split()[0])
+                            cross_line_spacing = float(results.get('Espaçamento das linhas de verificação').split()[0])
+                            st.write("### Resultados:")
+                            for key, value in results.items():
+                                st.write(f"{key}: {value}")
+                            st.download_button(label="Baixar Relatório em PDF", data=pdf_file, file_name="Relatório.pdf",
+                                               mime="application/pdf")
+                            temp_dir, file_paths = f.plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing)
+
+                            # Disponibiliza o download do shapefile como um arquivo zip
+                            if temp_dir and file_paths:
+                                f.download_shapefile_as_zip(temp_dir, file_paths)
+                            if pdf_file:
+                                st.download_button(label="Baixar Relatório em PDF", key='pdf', data=pdf_file,
+                                                   file_name="Relatório.pdf", mime="application/pdf")
+                        
+            
         with tempfile.TemporaryDirectory() as temp_dir:
-            try:
+            try:    #calculating with axe from function  ####################################################################
                 extracted_files = f.extract_files(file, temp_dir)
                 shapefiles = [f for f in extracted_files if f.endswith('.shp')]
 
@@ -181,14 +231,16 @@ with st.sidebar:
                                 st.write("### Resultados:")
                                 for key, value in results.items():
                                     st.write(f"{key}: {value}")
-                                st.download_button(label="Baixar Relatório em PDF", data=pdf_file, file_name="Relatório.pdf",mime="application/pdf")
+                                st.download_button(label="Baixar Relatório em PDF", data=pdf_file, file_name="Relatório.pdf",
+                                                   mime="application/pdf")
                                 temp_dir, file_paths = f.plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing)
 
                                         # Disponibiliza o download do shapefile como um arquivo zip
                             if temp_dir and file_paths:
                                 f.download_shapefile_as_zip(temp_dir, file_paths)
                             if pdf_file:
-                                st.download_button(label="Baixar Relatório em PDF", key='pdf',data=pdf_file, file_name="Relatório.pdf",mime="application/pdf")
+                                st.download_button(label="Baixar Relatório em PDF", key='pdf',data=pdf_file, file_name="Relatório.pdf",
+                                                   mime="application/pdf")
             except Exception as e:
                 st.error(f"Erro ao processar o arquivo: {e}")
 
