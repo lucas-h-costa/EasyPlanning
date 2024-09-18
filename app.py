@@ -7,7 +7,7 @@ import geopandas as gpd
 
 
 
-st.set_page_config(page_title="GBS - GPHIDRO BathyScape", page_icon="icon.png", layout="wide")
+st.set_page_config(page_title="Easy Planner", page_icon="icon.png", layout="wide") # alterar icone 
 
 
 def ajuda():
@@ -26,7 +26,7 @@ def sobre():
     
 
 
-def calculate(max_length, min_length,area, average_depth, sonar_range, sound_speed, beam_width, selected_option, frequency,
+def calculate(max_length, min_length,area, average_depth, sonar_range, sound_speed, beam_width, selected_option, generate_cross_lines, frequency,
               reg_line_spacing, cross_line_spacing, scale, contour_length ):
     try:
 
@@ -43,7 +43,7 @@ def calculate(max_length, min_length,area, average_depth, sonar_range, sound_spe
 
         reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines = f.line_spacing(
             area, max_length, min_length, selected_option, average_depth, reg_line_spacing, cross_line_spacing,
-            scale
+            scale, generate_cross_lines
         )
 
         # Cálculo do tempo de levantamento
@@ -77,14 +77,12 @@ def calculate(max_length, min_length,area, average_depth, sonar_range, sound_spe
         return None, None, None
 
 
-st.title("GBS - GPHIDRO BathyScape")
+st.title(" GPHIDRO Easy Planner")
 st.write("Planejamento de campanhas batimétricas")
 
 
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 with col1:
-    #parameters = st.selectbox("Escolha como deseja inserir a área do levantamento:",
-                              #["Manual", "Upload de arquivo SHP"])
     max_length = st.number_input("Comprimento máximo da área (m):", min_value=0.0, step=5.0,
                                  help='Comprimento da maior feição da área')
     min_length = st.number_input("Comprimento mínimo da área (m):", min_value=0.0, step=5.0,
@@ -93,6 +91,12 @@ with col1:
                                     help='Profundidade média da área')
     nav_speed = st.number_input("Velocidade de navegação (nós):", min_value=0.0, step=1.0,
                                 help='Velocidade de navegação em nós')
+    coverage_percentage = st.slider("Cobertura do levantamento (%)", min_value=0, max_value=200, value=100,
+                                    help='Porcentagem de cobertura do levantamento')
+    st.write("### Cobertura do levantamento ao longo da linha:", coverage_percentage, "%")
+    f.draw_footprint(coverage_percentage) # alterar 
+
+with col2:
     sonar_range = st.number_input("Alcance do sonar (m):", min_value=0.0, step=5.0,
                                   help='Alcance do sonar em metros')
     sound_speed = st.number_input("Velocidade do som na água (m/s):", min_value=0.0, step=1.0,
@@ -103,41 +107,43 @@ with col1:
                                  help='Largura do feixe do sonar em graus')
     selected_option = st.selectbox("Escolha uma opção de espaçamento de linha:",
                                    ["Normam", "ANA-UHE", "ANA-PCH", "Escala", "Personalizado"])
-    coverage_percentage = st.slider("Cobertura do levantamento (%)", min_value=0, max_value=200, value=100,
-                                    help='Porcentagem de cobertura do levantamento')
-    st.write("### Cobertura do levantamento ao longo da linha:", coverage_percentage, "%")
-
+    generate_cross_lines = st.checkbox("Gerar Linhas de Verificação")
+    
     scale = 0
-    if selected_option == "Personalizado":
+    if selected_option == "Personalizado":     
         reg_line_spacing = st.number_input("Espaçamento das linhas regulares de sondagem (m):", min_value=0.0, step=5.0,
                                            help='Espaçamento das linhas regulares de sondagem')
-        cross_line_spacing = st.number_input("Espaçamento das linhas de verificação (m):", min_value=0.0, step=5.0,
+        if generate_cross_lines:
+            cross_line_spacing = st.number_input("Espaçamento das linhas de verificação (m):", min_value=0.0, step=5.0,
                                            help='Espaçamento das linhas de verificação')
+        else: cross_line_spacing = 0 
+        
     elif selected_option == "Escala":
         scale = st.number_input("Escala(1/xxx):", min_value=0.0, step=1.0, help='Escala da carta')
         reg_line_spacing = 0.005 * scale 
-        cross_line_spacing = reg_line_spacing * 10
+        if generate_cross_lines:
+            cross_line_spacing = reg_line_spacing * 10
+        else: cross_line_spacing = 0
 
     else:
         reg_line_spacing = 0
         cross_line_spacing = 0
         scale = 0
-    f.draw_footprint(coverage_percentage)
-
-with col2:
+    
     if st.button("Calcular"):
         area = max_length * min_length
         results, sonar_footprint, pdf_file = calculate(max_length, min_length, area, average_depth, sonar_range,
-                                                       sound_speed, beam_width, selected_option, frequency, reg_line_spacing ,
+                                                       sound_speed, beam_width, selected_option, generate_cross_lines, frequency, reg_line_spacing ,
                                                          cross_line_spacing, scale, contour_length = 0)
 
         if results:
-            st.write("### Resultados:")
-            for key, value in results.items():
-                st.write(f"{key}: {value}")
-            if pdf_file:
-                st.download_button(label="Baixar Relatório em PDF", data=pdf_file, file_name="Relatório.pdf",
-                                   mime="application/pdf")
+            with col3:
+                st.write("### Resultados:")
+                for key, value in results.items():
+                    st.write(f"{key}: {value}")
+                if pdf_file:
+                    st.download_button(label="Baixar Relatório em PDF", data=pdf_file, file_name="Relatório.pdf",
+                                    mime="application/pdf")
 
 with st.sidebar:
     st.header("Menu")
@@ -177,70 +183,109 @@ with st.sidebar:
                 st.write(f"Área total calculada: {total_area:.2f} m^2")
                 f.plot_shapefile_with_shp_axes(shapefile_path, shp_file_path)
                 with col2:
+                    if st.button("Planejar Linhas"):           ##############################################################################
+                        reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines = f.line_spacing(
+                            total_area, float(info.get('comprimento em y')), float(info.get('comprimento em x')),
+                            selected_option, average_depth, reg_line_spacing, cross_line_spacing, scale
+                        )
+                        if reg_line_spacing:
+                            st.write("### Resultados:")
+                            st.write(f"Espaçamento das linhas regulares de sondagem: {reg_line_spacing:.2f} m")
+                            st.write(f"Espaçamento das linhas de verificação: {cross_line_spacing:.2f} m")
+                            st.write(f"Total de linhas regulares: {total_reg_lines}")
+                            st.write(f"Total de linhas de verificação: {total_cross_lines}")
+                            st.write("### Visualização:")
+                            temp_dir, file_paths = f.plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing)
+                            
+                            if temp_dir and file_paths:
+                                f.download_shapefile_as_zip(temp_dir, file_paths)   
                     if st.button("Calcular com arquivo SHP"):
                         results, sonar_footprint, pdf_file = calculate(float(info), float(info), total_area,
                                                                        average_depth, sonar_range, sound_speed,
-                                                                       beam_width, selected_option, frequency,
+                                                                       beam_width, selected_option, generate_cross_lines,  frequency,
                                                                        reg_line_spacing, cross_line_spacing, scale, contour_length)
                         if results:
-                            reg_line_spacing = float(results.get('Espaçamento das linhas regulares de sondagem').split()[0])
-                            cross_line_spacing = float(results.get('Espaçamento das linhas de verificação').split()[0])
-                            st.write("### Resultados:")
-                            for key, value in results.items():
-                                st.write(f"{key}: {value}")
-                            st.download_button(label="Baixar Relatório em PDF", data=pdf_file, file_name="Relatório.pdf",
-                                               mime="application/pdf")
-                            temp_dir, file_paths = f.plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing)
-
-                            # Disponibiliza o download do shapefile como um arquivo zip
-                            if temp_dir and file_paths:
-                                f.download_shapefile_as_zip(temp_dir, file_paths)
-                            if pdf_file:
-                                st.download_button(label="Baixar Relatório em PDF", key='pdf', data=pdf_file,
-                                                   file_name="Relatório.pdf", mime="application/pdf")
-                        
-            
-        with tempfile.TemporaryDirectory() as temp_dir:
-            try:    #calculating with axe from function  ####################################################################
-                extracted_files = f.extract_files(file, temp_dir)
-                shapefiles = [f for f in extracted_files if f.endswith('.shp')]
-
-                if not shapefiles:
-                    st.error("O arquivo comprimido não contém um shapefile (.shp).")
-                else:
-                    shapefile_path = shapefiles[0]
-                    gdf = gpd.read_file(shapefile_path)
-                    total_area = gdf.geometry.area.sum()
-                    gdf_contour = gdf.copy()
-                    gdf_contour['geometry'] = gdf_contour.buffer(-10)
-                    contour_length = gdf_contour.boundary.length.sum()
-                    st.write(f"Área total calculada: {total_area:.2f} m^2")
-                    info = f.calculate_axes_lengths(shapefile_path)
-                    st.write(info)
-                    f.plot_shapefile_with_axes(shapefile_path)
-                    with col2:
-                        if st.button("Calcular com arquivo SHP"):     #calculate using shapefile props 
-                            results, sonar_footprint, pdf_file = calculate(float(info.get('comprimento em y')),
-                                                                           float(info.get('comprimento em x')), total_area,
-                                                                           average_depth, sonar_range, sound_speed,
-                                                                           beam_width, selected_option, frequency,
-                                                                           reg_line_spacing, cross_line_spacing, scale, contour_length)
-                            if results:
+                            with col3:
                                 reg_line_spacing = float(results.get('Espaçamento das linhas regulares de sondagem').split()[0])
                                 cross_line_spacing = float(results.get('Espaçamento das linhas de verificação').split()[0])
                                 st.write("### Resultados:")
                                 for key, value in results.items():
                                     st.write(f"{key}: {value}")
                                 st.download_button(label="Baixar Relatório em PDF", data=pdf_file, file_name="Relatório.pdf",
-                                                   mime="application/pdf")
+                                                mime="application/pdf")
                                 temp_dir, file_paths = f.plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing)
 
-                                        # Disponibiliza o download do shapefile como um arquivo zip
-                            if temp_dir and file_paths:
-                                f.download_shapefile_as_zip(temp_dir, file_paths)
-                            if pdf_file:
-                                st.download_button(label="Baixar Relatório em PDF", key='pdf',data=pdf_file, file_name="Relatório.pdf",
-                                                   mime="application/pdf")
-            except Exception as e:
-                st.error(f"Erro ao processar o arquivo: {e}")
+                                # Disponibiliza o download do shapefile como um arquivo zip
+                                if temp_dir and file_paths:
+                                    f.download_shapefile_as_zip(temp_dir, file_paths)
+                                if pdf_file:
+                                    st.download_button(label="Baixar Relatório em PDF", key='pdf', data=pdf_file,
+                                                    file_name="Relatório.pdf", mime="application/pdf")
+                        
+        else:     
+            with tempfile.TemporaryDirectory() as temp_dir:
+                try:    #calculating with axe from function  ####################################################################
+                    extracted_files = f.extract_files(file, temp_dir)
+                    shapefiles = [f for f in extracted_files if f.endswith('.shp')]
+
+                    if not shapefiles:
+                        st.error("O arquivo comprimido não contém um shapefile (.shp).")
+                    else:
+                        shapefile_path = shapefiles[0]
+                        gdf = gpd.read_file(shapefile_path)
+                        total_area = gdf.geometry.area.sum()
+                        gdf_contour = gdf.copy()
+                        gdf_contour['geometry'] = gdf_contour.buffer(-10)
+                        contour_length = gdf_contour.boundary.length.sum()
+                        axe_shapefile_path = f.find_main_axe(shapefile_path, 50, "eixo_principal.shp") ### 
+                        st.write(f"Área total calculada: {total_area:.2f} m^2")
+                        info = f.calculate_axes_lengths(shapefile_path)
+                        st.write(info)
+                        f.plot_shapefile_with_shp_axes(shapefile_path, axe_shapefile_path)
+                        with col2:
+                            if st.button("Planejar Linhas"):           ##############################################################################
+                                reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines = f.line_spacing(
+                                    total_area, float(info.get('comprimento em y')), float(info.get('comprimento em x')),
+                                    selected_option, average_depth, reg_line_spacing, cross_line_spacing, scale
+                                )
+                                if reg_line_spacing:
+                                    st.write("### Resultados:")
+                                    st.write(f"Espaçamento das linhas regulares de sondagem: {reg_line_spacing:.2f} m")
+                                    st.write(f"Espaçamento das linhas de verificação: {cross_line_spacing:.2f} m")
+                                    st.write(f"Total de linhas regulares: {total_reg_lines}")
+                                    st.write(f"Total de linhas de verificação: {total_cross_lines}")
+                                    st.write("### Visualização:")
+                                    temp_dir, file_paths = f.plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing)
+                                    
+                                    if temp_dir and file_paths:
+                                        f.download_shapefile_as_zip(temp_dir, file_paths)   
+            
+                            if st.button("Calcular com arquivo SHP"):     #calculate using shapefile props 
+                                results, sonar_footprint, pdf_file = calculate(float(info.get('comprimento em y')),
+                                                                            float(info.get('comprimento em x')), total_area,
+                                                                            average_depth, sonar_range, sound_speed,
+                                                                            beam_width, selected_option, frequency,
+                                                                            reg_line_spacing, cross_line_spacing, scale, contour_length)
+                                if results:
+                                    with col3:
+                                        reg_line_spacing = float(results.get('Espaçamento das linhas regulares de sondagem').split()[0])
+                                        cross_line_spacing = float(results.get('Espaçamento das linhas de verificação').split()[0])
+                                        st.write("### Resultados:")
+                                        for key, value in results.items():
+                                            st.write(f"{key}: {value}")
+                                        st.download_button(label="Baixar Relatório em PDF", data=pdf_file, file_name="Relatório.pdf",
+                                                        mime="application/pdf")
+                                        temp_dir, file_paths = f.plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing)
+
+                                            # Disponibiliza o download do shapefile como um arquivo zip
+                                        if temp_dir and file_paths:
+                                            f.download_shapefile_as_zip(temp_dir, file_paths)
+                                        if pdf_file:
+                                            st.download_button(label="Baixar Relatório em PDF", key='pdf',data=pdf_file, file_name="Relatório.pdf",
+                                                            mime="application/pdf")
+                except Exception as e:
+                    st.error(f"Erro ao processar o arquivo: {e}")
+
+
+
 

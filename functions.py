@@ -10,7 +10,8 @@ import tempfile
 import os
 import pyproj
 import shapely.geometry as geom
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Point, Polygon, MultiPolygon
+from shapely.ops import unary_union
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
@@ -81,26 +82,31 @@ def calculate_survey_time(reg_line_spacing, cross_line_spacing, total_reg_lines,
 
 
 def line_spacing(area, max_length, min_length, selected_option, average_depth, reg_line_spacing, cross_line_spacing,
-                  scale):
+                  scale, generate_cross_lines):
     km = max_length / 1000
     hectares = area / 10000
 
     if selected_option == 'Normam':
 
         reg_line_spacing = max(3 * average_depth, 25)
-        cross_line_spacing = 10 * reg_line_spacing
-
+        if generate_cross_lines:
+            cross_line_spacing = 10 * reg_line_spacing
+        else: cross_line_spacing = 0
     elif selected_option == 'ANA-UHE':
 
         rls_km = (0.35 * (hectares ** 0.35)) / km
         reg_line_spacing = rls_km * 1000
-        cross_line_spacing = 3 * reg_line_spacing
+        if generate_cross_lines: 
+            cross_line_spacing = 3 * reg_line_spacing
+        else: cross_line_spacing = 0
 
     elif selected_option == 'ANA-PCH':
 
         rls_km = (0.1 * (hectares ** 0.25)) / km
         reg_line_spacing = rls_km * 1000
-        cross_line_spacing = 3 * reg_line_spacing
+        if generate_cross_lines:
+            cross_line_spacing = 3 * reg_line_spacing
+        else: cross_line_spacing = 0
 
     elif selected_option == 'Personalizado':
 
@@ -199,7 +205,6 @@ def generate_pdf_report(results, title="Relatório de Resultados"):  # generatin
     # returning pdf file in bytes, to be used in the download button (streamlit can not deal with pdf files directly)
     return buffer.getvalue()
 
-
 def ensure_utm_crs(gdf):
     """Converte o CRS do GeoDataFrame para UTM, se necessário."""
     if gdf.crs.is_projected:
@@ -211,7 +216,6 @@ def ensure_utm_crs(gdf):
         f"EPSG:{pyproj.CRS.from_proj(pyproj.Proj(proj='latlong', datum='WGS84')).to_proj4().split(' ')[-1]}")
     gdf = gdf.to_crs(crs_utm.to_epsg())
     return gdf
-
 
 def extract_files(uploaded_file, temp_dir):
     """Extrai arquivos de um ZIP ou RAR e retorna o caminho dos arquivos extraídos."""
@@ -226,19 +230,6 @@ def extract_files(uploaded_file, temp_dir):
         raise ValueError("Formato de arquivo não suportado. Por favor, envie um arquivo ZIP.")
 
     return [os.path.join(temp_dir, f) for f in os.listdir(temp_dir)]
-
-
-def plot_shapefile(shapefile_path):
-    """Plota o shapefile usando geopandas e matplotlib."""
-    gdf = gpd.read_file(shapefile_path)
-    # Cria o gráfico
-    fig, ax = plt.subplots(figsize=(10, 10))
-    gdf.plot(ax=ax, color='lightblue', edgecolor='black')
-    plt.title('Visualização do Arquivo')
-    plt.xlabel('Longitude')
-    plt.ylabel('Latitude')
-    st.pyplot(fig)
-
 
 def calculate_axes_lengths(shapefile_path):
     """Calcula os comprimentos dos eixos norte-sul e leste-oeste de um shapefile."""
@@ -265,22 +256,103 @@ def calculate_axes_lengths(shapefile_path):
 
     return axes_info
 
-def plot_shapefile_with_shp_axes(shapefile_path, shp_file_path):
+def find_main_axe(shapefile_path, num_pontos=50, nome_arquivo_saida='eixo_principal.shp'):
+    try:
+        # 1. Carregar o shapefile
+        gdf = gpd.read_file(shapefile_path)
+        
+        # Verificar se o arquivo contém geometria
+        if gdf.empty:
+            raise ValueError("O shapefile está vazio.")
+        
+        geometria = gdf.geometry.iloc[0]
+        
+        # Função para converter geometria para um Polígono
+        def converter_para_poligono(geom):
+            if isinstance(geom, Polygon):
+                return geom
+            elif isinstance(geom, MultiPolygon):
+                return unary_union(geom).convex_hull
+            elif isinstance(geom, LineString):
+                # Verificar se o LineString é fechado
+                if geom.is_ring:
+                    return Polygon(geom)
+                else:
+                    raise TypeError("O LineString não é fechado e não pode ser convertido em Polígono.")
+            else:
+                raise TypeError("A geometria no shapefile não é um Polígono, MultiPolígono ou LineString fechado.")
+        
+        # Converter a geometria para um Polígono simples
+        polygon = converter_para_poligono(geometria)
+
+        # 2. Calcular o centróide do polígono
+        centroide = polygon.centroid
+
+        # 3. Gerar uma grade de pontos ao longo do comprimento do polígono
+        x, y = polygon.exterior.coords.xy
+        coords = np.array(list(zip(x, y)))
+
+        # 4. Calcular a matriz de covariância das coordenadas
+        cov = np.cov(coords.T)
+
+        # 5. Aplicar Análise de Componentes Principais (PCA) para o eixo principal geral
+        eigenvalues, eigenvectors = np.linalg.eig(cov)
+        principal_axis_vector = eigenvectors[:, np.argmax(eigenvalues)]
+
+        # 6. Dividir o polígono em segmentos longitudinais e calcular o eixo local para cada segmento
+        comprimento_total = polygon.length
+        espacamento = comprimento_total / num_pontos
+        pontos_eixo = []
+
+        # 7. Gerar pontos ao longo do eixo principal seguindo o contorno do polígono
+        for i in range(num_pontos):
+            # Calcular a posição ao longo do eixo, ajustando ao contorno
+            dist = i * espacamento
+            point_on_polygon = polygon.interpolate(dist)
+
+            # Criar um vetor local perpendicular ao eixo principal
+            offset_vector = np.array([-principal_axis_vector[1], principal_axis_vector[0]])  # Perpendicular
+
+            # Determinar o ponto do eixo principal localmente, com um pequeno ajuste
+            ponto_local = Point(point_on_polygon.x + offset_vector[0] * espacamento, 
+                                point_on_polygon.y + offset_vector[1] * espacamento)
+
+            pontos_eixo.append(ponto_local)
+
+        # 8. Conectar os pontos para formar uma linha poligonal (eixo principal)
+        eixo_principal = LineString([p.coords[0] for p in pontos_eixo])
+
+        # 9. Criar um GeoDataFrame para armazenar o eixo principal
+        gdf_eixo = gpd.GeoDataFrame(geometry=[eixo_principal], crs=gdf.crs)
+
+        # 10. Definir o caminho para salvar o shapefile
+        axe_shapefile_path = os.path.join(os.getcwd(), nome_arquivo_saida)
+
+        # 11. Salvar o GeoDataFrame com o eixo em um shapefile
+        gdf_eixo.to_file(axe_shapefile_path)
+
+        # 12. Retornar o caminho do arquivo shapefile gerado
+        return axe_shapefile_path
+    
+    except Exception as e:
+        return f"Erro ao processar o arquivo: {str(e)}"
+
+def plot_shapefile_with_shp_axes(shapefile_path, axe_shapefile_path):
     gdf = gpd.read_file(shapefile_path)
-    gdf_shp = gpd.read_file(shp_file_path)
+    gdf_axe = gpd.read_file(axe_shapefile_path)
 
     gdf = ensure_utm_crs(gdf)
-    gdf_shp = ensure_utm_crs(gdf_shp)
+    gdf_axe = ensure_utm_crs(gdf_axe)
 
     fig, ax = plt.subplots(figsize=(10, 10))
 
     gdf.plot(ax=ax, color='lightblue', edgecolor='black')
-    gdf_shp.boundary.plot(ax=ax, color='red', linewidth=1, label='Eixos do arquivo .shp')
+    gdf_axe.boundary.plot(ax=ax, color='red', linewidth=1, label='Eixos do arquivo .shp')
     gdf.boundary.plot(ax=ax, color='purple', linewidth=1, label='Contorno do reservatório')
 
     plt.title('Visualização do Arquivo com o eixo')
-    plt.xlabel('Longitude')
-    plt.ylabel('Latitude')
+    plt.xlabel('X')
+    plt.ylabel('Y')
     plt.legend()
     plt.grid(False)
     st.pyplot(fig)
@@ -320,9 +392,9 @@ def plot_shapefile_with_axes(shapefile_path):
     ax.add_line(ew_line)
 
     # Ajustar a visualização
-    plt.title('Visualização do Arquivo com Eixos pelo Centróide')
-    plt.xlabel('Longitude')
-    plt.ylabel('Latitude')
+    plt.title('Visualização do Arquivo com Eixos  passando pelo Centróide')
+    plt.xlabel('X')
+    plt.ylabel('Y')
     plt.legend()
     plt.grid(False)
     st.pyplot(fig)
@@ -411,7 +483,7 @@ def download_shapefile_as_zip(temp_dir, file_paths):
     zip_name = "shapefiles"
     zip_path = create_zip_from_directory(temp_dir, zip_name)
     with open(zip_path, "rb") as f:
-        st.download_button(label="Baixar Shapefile Processado", data=f.read(), file_name=f"{zip_name}.zip", mime="application/zip")
+        st.download_button(label="Baixar Linhas Planejadas", data=f.read(), file_name=f"{zip_name}.zip", mime="application/zip")
 
     # Não remover o diretório temporário até que o download seja concluído
     return
