@@ -7,7 +7,7 @@ import geopandas as gpd
 
 
 
-st.set_page_config(page_title="Easy Planner", page_icon="icon.png", layout="wide") # alterar icone 
+st.set_page_config(page_title="Easy Planning", page_icon="icon.png", layout="wide") # alterar icone 
 
 
 def ajuda():
@@ -20,9 +20,9 @@ def ajuda():
 
 def sobre():
     st.write("### Sobre")
-    st.info("BathyScape é uma aplicação web para planejamento de campanhas batimétricas. \n"
+    st.info("Easy Planning é uma aplicação web para planejamento de campanhas batimétricas. \n"
              "Desenvolvido por Lucas Costa (lucas.h.costa@ufv.br)  - Grupo de Pesquisa em Hidrografia - GPHIDRO. \n"
-             "Para mais informações, acesse: [GPHIDRO](https://gphidro.com.br/).\n o upload de arquivos de eixo ainda está em desenvolvimento")
+             "Para mais informações, acesse: [GPHIDRO](https://gphidro.com.br/).\n")
     
 
 
@@ -30,15 +30,15 @@ def calculate(max_length, min_length,area, average_depth, sonar_range, sound_spe
               reg_line_spacing, cross_line_spacing, scale, contour_length ):
     try:
 
-        # Cálculo da taxa de ping
+        # ping rate calculation
         ping_rate_hz = f.calculate_ping_rate(sonar_range, sound_speed, frequency)
 
         area = area
 
-        # Cálculo da pegada do sonar
+        # sonar footprint calculation
         sonar_footprint = f.calculate_sonar_footprint(beam_width, sonar_range)
 
-        # Cálculo da velocidade de navegação
+        #navigation speed calculation
         velocity_m_s, velocity_knots = f.calculate_velocity(sonar_footprint, ping_rate_hz)
 
         reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines = f.line_spacing(
@@ -46,13 +46,13 @@ def calculate(max_length, min_length,area, average_depth, sonar_range, sound_spe
             scale, generate_cross_lines
         )
 
-        # Cálculo do tempo de levantamento
+        # survey time calculation
         survey_time_rounded, total_time, unit = f.calculate_survey_time(
             reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines, min_length, max_length,
             nav_speed, contour_length
         )
 
-        # Resultados
+        
         results = {
             'Área total do levantamento': f'{area:.2f} m²',
             'Ping Rate teórico máximo calculado': f'{ping_rate_hz:.2f} Hertz',
@@ -63,10 +63,10 @@ def calculate(max_length, min_length,area, average_depth, sonar_range, sound_spe
             'Velocidade de navegação máxima para uma cobertura de 100%': f'{velocity_knots:.2f} nós'
         }
 
-        # Gerar o relatório em PDF
+        # Generate PDF report
         pdf_file = f.generate_pdf_report(results, title="Relatório de Planejamento de Campanha Batimétrica")
 
-        # Garantir que pdf_file seja válido
+        
         if pdf_file is None:
             raise ValueError("Erro ao gerar o relatório em PDF.")
 
@@ -241,7 +241,7 @@ with st.sidebar:
                         st.write(f"Área total calculada: {total_area:.2f} m^2")
                         info = f.calculate_axes_lengths(shapefile_path)
                         st.write(info)
-                        f.plot_shapefile_with_shp_axes(shapefile_path, axe_shapefile_path)
+                        #f.plot_shapefile_with_shp_axes(shapefile_path, axe_shapefile_path)
                         with col2:
                             if st.button("Planejar Linhas"):           ##############################################################################
                                 reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines = f.line_spacing(
