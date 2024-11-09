@@ -265,24 +265,57 @@ def calculate_axes_lengths(shapefile_path):
 
     return axes_info
 
-def plot_shapefile_with_shp_axes(shapefile_path, shp_file_path):
-    gdf = gpd.read_file(shapefile_path)
-    gdf_shp = gpd.read_file(shp_file_path)
 
+def plot_shapefile_with_shp_axes(shapefile_path, shp_file_path):
+    # Carregar os shapefiles
+    try:
+        gdf = gpd.read_file(shapefile_path)
+        gdf_shp = gpd.read_file(shp_file_path)
+    except Exception as e:
+        st.error(f"Erro ao carregar os arquivos shapefile: {e}")
+        return
+
+    # Verificar se o shapefile principal é um polígono
+    if not all(gdf.geometry.type == 'Polygon'):
+        st.error("O arquivo principal deve conter geometrias do tipo polígono.")
+        return
+
+    # Verificar se o arquivo de eixos é uma linha
+    if not all(gdf_shp.geometry.type == 'LineString'):
+        st.error("O arquivo de eixos deve conter geometrias do tipo linha.")
+        return
+
+    # Garantir que ambos os shapefiles estejam em CRS UTM
     gdf = ensure_utm_crs(gdf)
     gdf_shp = ensure_utm_crs(gdf_shp)
 
+    # Criar figura e eixos
     fig, ax = plt.subplots(figsize=(10, 10))
 
-    gdf.plot(ax=ax, color='lightblue', edgecolor='black')
+    # Plotar o shapefile principal (polígono)
+    gdf.plot(ax=ax, color='lightblue', edgecolor='black', label='Polígono (Reservatório)')
+
+    # Plotar o arquivo de eixos (linha)
     gdf_shp.boundary.plot(ax=ax, color='red', linewidth=1, label='Eixos do arquivo .shp')
+
+    # Plotar contorno do polígono
     gdf.boundary.plot(ax=ax, color='purple', linewidth=1, label='Contorno do reservatório')
 
-    plt.title('Visualização do Arquivo com o eixo')
-    plt.xlabel('Longitude')
-    plt.ylabel('Latitude')
+    # Definir título e rótulos dos eixos
+    plt.title('Visualização do Arquivo com o Eixo')
+    plt.xlabel('Coordenada UTM (Eixo X)')
+    plt.ylabel('Coordenada UTM (Eixo Y)')
+    
+    # Manter proporção correta no gráfico
+    ax.set_aspect('equal')
+
+    # Mostrar legenda
     plt.legend()
+
+    # Remover grid
     plt.grid(False)
+
+    # Exibir o gráfico no Streamlit
     st.pyplot(fig)
 
 
@@ -321,8 +354,8 @@ def plot_shapefile_with_axes(shapefile_path):
 
     # Ajustar a visualização
     plt.title('Visualização do Arquivo com Eixos pelo Centróide')
-    plt.xlabel('Longitude')
-    plt.ylabel('Latitude')
+    plt.xlabel('UTM (Eixo X)')
+    plt.ylabel('UTM (Eixo Y)')
     plt.legend()
     plt.grid(False)
     st.pyplot(fig)
@@ -330,7 +363,7 @@ def plot_shapefile_with_axes(shapefile_path):
 #######
 
 
-def plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing):
+def plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing):  # modify the function to receive gdf axe length
     """Plota o shapefile com linhas regulares e de verificação dentro da área do polígono e uma linha de contorno."""
     # Verificar se o input é uma string e carregar o GeoDataFrame se necessário
     if isinstance(gdf, str):
@@ -349,19 +382,120 @@ def plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing):
     # Criar GeoDataFrames para as linhas
     grid_lines = []
 
-    # Criar linhas regulares (verticais)
+    # Criar linhas de verificação (verticais)
     current_x = bounds[0]
     while current_x <= bounds[2]:
         line = LineString([(current_x, bounds[1]), (current_x, bounds[3])])
         grid_lines.append(line)
         current_x += cross_line_spacing
 
-    # Criar linhas de verificação (horizontais)
+    # Criar linhas regulares (horizontais)
     current_y = bounds[1]
     while current_y <= bounds[3]:
         line = LineString([(bounds[0], current_y), (bounds[2], current_y)])
         grid_lines.append(line)
         current_y += reg_line_spacing
+
+    # Criar GeoDataFrame para as linhas de grid
+    gdf_grid_lines = gpd.GeoDataFrame(geometry=grid_lines, crs=gdf.crs)
+
+    # Realizar a interseção para garantir que as linhas de grid fiquem dentro do contorno com buffer
+    gdf_grid_lines = gpd.overlay(gdf_grid_lines, gdf_contour, how='intersection')
+
+    # Salvar os shapefiles modificados em um diretório temporário
+    temp_dir = tempfile.mkdtemp()
+    try:
+        # Shapefile das linhas de grid
+        grid_lines_shapefile_path = os.path.join(temp_dir, "shapefile_linhas_grid.shp")
+        gdf_grid_lines.to_file(grid_lines_shapefile_path)
+
+        # Shapefile do contorno
+        contour_shapefile_path = os.path.join(temp_dir, "shapefile_contorno.shp")
+        gdf_contour.to_file(contour_shapefile_path)
+
+        # Exibir o gráfico
+        fig, ax = plt.subplots(figsize=(10, 10))
+        gdf.plot(ax=ax, color='lightblue', edgecolor='black')
+        gdf_grid_lines.plot(ax=ax, color='red', linestyle='-', label='Linhas de Sondagem')
+        gdf_contour.boundary.plot(ax=ax, color='purple', linewidth=1, label='Contorno do reservatório')
+
+        plt.title('Visualização do Arquivo com Linhas de Sondagem e Contorno')
+        plt.xlabel('X')
+        plt.ylabel('Y')
+        plt.legend()
+        plt.grid(False)
+        st.pyplot(fig)
+
+        return temp_dir, [grid_lines_shapefile_path, contour_shapefile_path] 
+     # Retorna o diretório e os caminhos dos arquivos shapefiles
+    except Exception as e:
+        st.error(f"Erro ao criar shapefiles: {e}")
+        return None, None
+
+def plot_shapefile_with_grids_shp(gdf, reg_line_spacing, cross_line_spacing, gdf_axe=None): ###################################
+    """Plota o shapefile com linhas regulares e de verificação dentro da área do polígono e uma linha de contorno."""
+    # Verificar se o input é uma string e carregar o GeoDataFrame se necessário
+    if isinstance(gdf, str):
+        gdf = gpd.read_file(gdf)
+
+    # Garantir que o CRS esteja em UTM para medidas precisas
+    gdf = ensure_utm_crs(gdf)
+
+    # Criar a linha de contorno com um buffer de 10 metros para dentro
+    gdf_contour = gdf.copy()
+    gdf_contour['geometry'] = gdf_contour.buffer(-10)
+
+    # Obter os limites do shapefile
+    bounds = gdf_contour.total_bounds  # [minx, miny, maxx, maxy]
+
+    # Criar GeoDataFrames para as linhas
+    grid_lines = []
+
+    if gdf_axe is not None and not gdf_axe.empty:
+        # Garantir que o CRS do gdf_axe esteja em UTM para medidas precisas
+        gdf_axe = ensure_utm_crs(gdf_axe)
+
+        # Gerar linhas de verificação paralelas ao eixo principal (gdf_axe)
+        for line in gdf_axe.geometry:
+            current_offset = 0
+            while current_offset <= bounds[2] - bounds[0]:
+                offset_line = line.parallel_offset(current_offset, 'left')
+                grid_lines.append(offset_line)
+                current_offset += cross_line_spacing
+
+        # Gerar linhas de sondagem perpendiculares ao eixo principal (gdf_axe)
+        for line in gdf_axe.geometry:
+            line_coords = list(line.coords)
+            for i in range(len(line_coords) - 1):
+                x1, y1 = line_coords[i]
+                x2, y2 = line_coords[i + 1]
+
+                # Calcular a inclinação perpendicular
+                dx = x2 - x1
+                dy = y2 - y1
+                length = (dx**2 + dy**2)**0.5
+                perp_dx = -dy / length * reg_line_spacing
+                perp_dy = dx / length * reg_line_spacing
+
+                current_y = bounds[1]
+                while current_y <= bounds[3]:
+                    perp_line = LineString([(x1 + perp_dx * k, y1 + perp_dy * k) for k in range(int((bounds[2] - bounds[0]) / reg_line_spacing))])
+                    grid_lines.append(perp_line)
+                    current_y += reg_line_spacing
+    else:
+        # Criar linhas de verificação (verticais) usando a lógica original
+        current_x = bounds[0]
+        while current_x <= bounds[2]:
+            line = LineString([(current_x, bounds[1]), (current_x, bounds[3])])
+            grid_lines.append(line)
+            current_x += cross_line_spacing
+
+        # Criar linhas regulares (horizontais) usando a lógica original
+        current_y = bounds[1]
+        while current_y <= bounds[3]:
+            line = LineString([(bounds[0], current_y), (bounds[2], current_y)])
+            grid_lines.append(line)
+            current_y += reg_line_spacing
 
     # Criar GeoDataFrame para as linhas de grid
     gdf_grid_lines = gpd.GeoDataFrame(geometry=grid_lines, crs=gdf.crs)
@@ -398,6 +532,8 @@ def plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing):
     except Exception as e:
         st.error(f"Erro ao criar shapefiles: {e}")
         return None, None
+
+
 
 
 def create_zip_from_directory(directory_path, zip_name):

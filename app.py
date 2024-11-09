@@ -1,13 +1,13 @@
 import numpy as np
 import streamlit as st
-import functions as f
+import functions as f     ### arquivo auxiliar com as funções
 import tempfile
 import pandas as pd
 import geopandas as gpd
 
 
 
-st.set_page_config(page_title="GBS - GPHIDRO BathyScape", page_icon="icon.png", layout="wide")
+st.set_page_config(page_title="Easy Planning", page_icon="pageIcon.jpg", layout="wide")
 
 
 def ajuda():
@@ -20,7 +20,7 @@ def ajuda():
 
 def sobre():
     st.write("### Sobre")
-    st.info("BathyScape é uma aplicação web para planejamento de campanhas batimétricas. \n"
+    st.info("Easy Planning é uma aplicação web para planejamento de campanhas batimétricas. \n"
              "Desenvolvido por Lucas Costa (lucas.h.costa@ufv.br)  - Grupo de Pesquisa em Hidrografia - GPHIDRO. \n"
              "Para mais informações, acesse: [GPHIDRO](https://gphidro.com.br/).\n o upload de arquivos de eixo ainda está em desenvolvimento")
     
@@ -75,16 +75,13 @@ def calculate(max_length, min_length,area, average_depth, sonar_range, sound_spe
     except Exception as e:
         st.error(f"Erro ao calcular: {e}")
         return None, None, None
-
-
-st.title("GBS - GPHIDRO BathyScape")
+    
+st.title(" GPHidro Easy Planning ", )
 st.write("Planejamento de campanhas batimétricas")
 
 
 col1, col2 = st.columns(2)
 with col1:
-    #parameters = st.selectbox("Escolha como deseja inserir a área do levantamento:",
-                              #["Manual", "Upload de arquivo SHP"])
     max_length = st.number_input("Comprimento máximo da área (m):", min_value=0.0, step=5.0,
                                  help='Comprimento da maior feição da área')
     min_length = st.number_input("Comprimento mínimo da área (m):", min_value=0.0, step=5.0,
@@ -148,83 +145,70 @@ with st.sidebar:
     if 'pdf_file' in locals() and pdf_file:
         st.download_button(label="Baixar Relatório", data=pdf_file, file_name="Relatório.pdf", mime="application/pdf")
 
-    file = st.file_uploader("Upload de arquivo SHP ", type=['zip', 'rar'])
-    axe = st.file_uploader("upload do eixo do reservatório", type=['zip', 'rar'])
-  
+    file = st.file_uploader("Upload de arquivo SHP", type=['zip', 'rar'])
+    axe = st.file_uploader("Upload do eixo do reservatório", type=['zip', 'rar'])
 
     if file:
-        if axe:    #calculating with axe provided by user  ####################################################################
-          with tempfile.TemporaryDirectory() as temp_dir:
-         
-            extracted_files = f.extract_files(axe, temp_dir)
-            extracted_shp = f.extract_files(file, temp_dir)
-            shapefiles = [f for f in extracted_shp if f.endswith('.shp')]
-            shp_files = [f for f in extracted_files if f.endswith('.shp')]
-            if not shp_files or not shapefiles:
-                st.error("O arquivo comprimido não contém um shapefile (.shp).")
-            else:
-                shp_file_path = shp_files[0]
-                shapefile_path = shapefiles[0]
-                gdf_axe = gpd.read_file(shp_file_path)
-                info = gdf_axe.geometry.length.sum()
-                st.write(info)
-                
-                gdf = gpd.read_file(shapefile_path)
-                total_area = gdf.geometry.area.sum()
-                gdf_contour = gdf.copy()
-                gdf_contour['geometry'] = gdf_contour.buffer(-10)
-                contour_length = gdf_contour.boundary.length.sum()
-                st.write(f"Área total calculada: {total_area:.2f} m^2")
-                f.plot_shapefile_with_shp_axes(shapefile_path, shp_file_path)
-                with col2:
-                    if st.button("Calcular com arquivo SHP"):
-                        results, sonar_footprint, pdf_file = calculate(float(info), float(info), total_area,
-                                                                       average_depth, sonar_range, sound_speed,
-                                                                       beam_width, selected_option, frequency,
-                                                                       reg_line_spacing, cross_line_spacing, scale, contour_length)
-                        if results:
-                            reg_line_spacing = float(results.get('Espaçamento das linhas regulares de sondagem').split()[0])
-                            cross_line_spacing = float(results.get('Espaçamento das linhas de verificação').split()[0])
-                            st.write("### Resultados:")
-                            for key, value in results.items():
-                                st.write(f"{key}: {value}")
-                            st.download_button(label="Baixar Relatório em PDF", data=pdf_file, file_name="Relatório.pdf",
-                                               mime="application/pdf")
-                            temp_dir, file_paths = f.plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing)
+        if axe:  # Cálculo com eixo fornecido pelo usuário
+            with tempfile.TemporaryDirectory() as temp_dir:
+                try:
+                    # Extrair arquivos do eixo e do shapefile principal
+                    st.write("Extraindo arquivos do eixo...")
+                    extracted_files_axe = f.extract_files(axe, temp_dir)
+                    st.write("Extraindo arquivos do shapefile principal...")
+                    extracted_files_shp = f.extract_files(file, temp_dir)
 
-                            # Disponibiliza o download do shapefile como um arquivo zip
-                            if temp_dir and file_paths:
-                                f.download_shapefile_as_zip(temp_dir, file_paths)
-                            if pdf_file:
-                                st.download_button(label="Baixar Relatório em PDF", key='pdf', data=pdf_file,
-                                                   file_name="Relatório.pdf", mime="application/pdf")
-                        
-            
-        with tempfile.TemporaryDirectory() as temp_dir:
-            try:    #calculating with axe from function  ####################################################################
-                extracted_files = f.extract_files(file, temp_dir)
-                shapefiles = [f for f in extracted_files if f.endswith('.shp')]
+                    # Verificar e identificar arquivos .shp extraídos
+                    shapefiles = [f for f in extracted_files_shp if f.endswith('.shp')]
+                    axe_files = [f for f in extracted_files_axe if f.endswith('.shp')]
 
-                if not shapefiles:
-                    st.error("O arquivo comprimido não contém um shapefile (.shp).")
-                else:
-                    shapefile_path = shapefiles[0]
-                    gdf = gpd.read_file(shapefile_path)
-                    total_area = gdf.geometry.area.sum()
-                    gdf_contour = gdf.copy()
-                    gdf_contour['geometry'] = gdf_contour.buffer(-10)
-                    contour_length = gdf_contour.boundary.length.sum()
-                    st.write(f"Área total calculada: {total_area:.2f} m^2")
-                    info = f.calculate_axes_lengths(shapefile_path)
-                    st.write(info)
-                    f.plot_shapefile_with_axes(shapefile_path)
+                    if not shapefiles: 
+                        st.error("O arquivo principal não contém um shapefile (.shp).")
+                    elif not axe_files: 
+                        st.error("O arquivo comprimido do eixo não contém um shapefile (.shp).")
+                    else:
+                        shp_file_path = axe_files[0]
+                        shapefile_path = shapefiles[0]
+
+                        # Ler os shapefiles extraídos
+                        st.write("Carregando o shapefile do eixo...")
+                        gdf_axe = gpd.read_file(shp_file_path)
+                        st.write("Carregando o shapefile principal...")
+                        gdf = gpd.read_file(shapefile_path)
+    
+                        # Verificar se o eixo e o shapefile principal foram carregados corretamente
+                        if gdf_axe.empty:
+                            st.error("O shapefile do eixo está vazio ou não pôde ser carregado.")
+                        elif gdf.empty:
+                            st.error("O shapefile principal está vazio ou não pôde ser carregado.")
+                        else:
+                            with st.sidebar:
+                            # Calcular informações e áreas dos shapefiles
+                                max_length = gdf_axe.geometry.length.sum()
+                                st.write(f"Comprimento total do eixo: {max_length}")
+                                    
+                                info = f.calculate_axes_lengths(shapefile_path)
+                                
+                                total_area = gdf.geometry.area.sum()
+                                gdf_contour = gdf.copy()
+                                gdf_contour['geometry'] = gdf_contour.buffer(-10)
+                                contour_length = gdf_contour.boundary.length.sum()
+        
+                                st.write(f"Área total calculada: {total_area:.2f} m²")
+        
+                                    # Plotar os shapefiles sobrepostos
+                                f.plot_shapefile_with_shp_axes(shapefile_path, shp_file_path)
+
+                except Exception as e:
+                    st.error(f"Erro ao processar os arquivos: {e}")
+
+
                     with col2:
-                        if st.button("Calcular com arquivo SHP"):     #calculate using shapefile props 
-                            results, sonar_footprint, pdf_file = calculate(float(info.get('comprimento em y')),
-                                                                           float(info.get('comprimento em x')), total_area,
-                                                                           average_depth, sonar_range, sound_speed,
-                                                                           beam_width, selected_option, frequency,
-                                                                           reg_line_spacing, cross_line_spacing, scale, contour_length)
+                        if st.button("Calcular com arquivo SHP"):
+                            results, sonar_footprint, pdf_file = calculate(max_length, float(info.get('comprimento em x')), total_area,
+                                                                        average_depth, sonar_range, sound_speed,
+                                                                        beam_width, selected_option, frequency,
+                                                                        reg_line_spacing, cross_line_spacing, scale, contour_length)
                             if results:
                                 reg_line_spacing = float(results.get('Espaçamento das linhas regulares de sondagem').split()[0])
                                 cross_line_spacing = float(results.get('Espaçamento das linhas de verificação').split()[0])
@@ -232,15 +216,58 @@ with st.sidebar:
                                 for key, value in results.items():
                                     st.write(f"{key}: {value}")
                                 st.download_button(label="Baixar Relatório em PDF", data=pdf_file, file_name="Relatório.pdf",
-                                                   mime="application/pdf")
-                                temp_dir, file_paths = f.plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing)
+                                                mime="application/pdf")
+                                temp_dir, file_paths = f.plot_shapefile_with_grids_shp(gdf, reg_line_spacing, cross_line_spacing, gdf_axe)
 
-                                        # Disponibiliza o download do shapefile como um arquivo zip
-                            if temp_dir and file_paths:
-                                f.download_shapefile_as_zip(temp_dir, file_paths)
-                            if pdf_file:
-                                st.download_button(label="Baixar Relatório em PDF", key='pdf',data=pdf_file, file_name="Relatório.pdf",
-                                                   mime="application/pdf")
-            except Exception as e:
-                st.error(f"Erro ao processar o arquivo: {e}")
+                                # Disponibiliza o download do shapefile como um arquivo zip
+                                if temp_dir and file_paths:
+                                    f.download_shapefile_as_zip(temp_dir, file_paths)
+                                if pdf_file:
+                                    st.download_button(label="Baixar Relatório em PDF", key='pdf', data=pdf_file,
+                                                    file_name="Relatório.pdf", mime="application/pdf")
+                            
+        else:     
+            with tempfile.TemporaryDirectory() as temp_dir:
+                try:    #calculating with axe from function  ####################################################################
+                    extracted_files = f.extract_files(file, temp_dir)
+                    shapefiles = [f for f in extracted_files if f.endswith('.shp')]
+
+                    if not shapefiles:
+                        st.error("O arquivo comprimido não contém um shapefile (.shp).")
+                    else:
+                        shapefile_path = shapefiles[0]
+                        gdf = gpd.read_file(shapefile_path)
+                        total_area = gdf.geometry.area.sum()
+                        gdf_contour = gdf.copy()
+                        gdf_contour['geometry'] = gdf_contour.buffer(-10)
+                        contour_length = gdf_contour.boundary.length.sum()
+                        st.write(f"Área total calculada: {total_area:.2f} m^2")
+                        info = f.calculate_axes_lengths(shapefile_path)
+                        st.write(info)
+                        f.plot_shapefile_with_axes(shapefile_path)
+                        with col2:
+                            if st.button("Calcular com arquivo SHP"):     #calculate using shapefile props 
+                                results, sonar_footprint, pdf_file = calculate(float(info.get('comprimento em y')),
+                                                                            float(info.get('comprimento em x')), total_area,
+                                                                            average_depth, sonar_range, sound_speed,
+                                                                            beam_width, selected_option, frequency,
+                                                                            reg_line_spacing, cross_line_spacing, scale, contour_length)
+                                if results:
+                                    reg_line_spacing = float(results.get('Espaçamento das linhas regulares de sondagem').split()[0])
+                                    cross_line_spacing = float(results.get('Espaçamento das linhas de verificação').split()[0])
+                                    st.write("### Resultados:")
+                                    for key, value in results.items():
+                                        st.write(f"{key}: {value}")
+                                    st.download_button(label="Baixar Relatório em PDF", data=pdf_file, file_name="Relatório.pdf",
+                                                    mime="application/pdf")
+                                    temp_dir, file_paths = f.plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing)
+
+                                            # Disponibiliza o download do shapefile como um arquivo zip
+                                if temp_dir and file_paths:
+                                    f.download_shapefile_as_zip(temp_dir, file_paths)
+                                if pdf_file:
+                                    st.download_button(label="Baixar Relatório em PDF", key='pdf',data=pdf_file, file_name="Relatório.pdf",
+                                                    mime="application/pdf")
+                except Exception as e:
+                    st.error(f"Erro ao processar o arquivo: {e}")
 
