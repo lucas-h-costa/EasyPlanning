@@ -20,7 +20,7 @@ def ajuda():
 
 def sobre():
     st.write("### Sobre")
-    st.info("Easy Planning é uma aplicação web para planejamento de campanhas batimétricas. \n"
+    st.info("Easy Planning é uma aplicação web para planejamento de campanhas batimétricas. \n")
     st.info("Easy Planning é uma aplicação web para planejamento de campanhas batimétricas. \n"
              "Desenvolvido por Lucas Costa (lucas.h.costa@ufv.br)  - Grupo de Pesquisa em Hidrografia - GPHIDRO. \n"
              "Para mais informações, acesse: [GPHIDRO](https://gphidro.com.br/).\n")
