@@ -1,7 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.lines as mlines
-import streamlit as st
 import geopandas as gpd
 import pandas as pd
 import zipfile
@@ -22,7 +20,6 @@ from io import BytesIO
 from datetime import datetime
 import shutil
 
-
 def set_default_values(beam_width, sound_speed, average_depth, max_length, min_length, sonar_range):
     """Define valores padrão se não forem fornecidos."""
     if beam_width is None:
@@ -39,7 +36,6 @@ def set_default_values(beam_width, sound_speed, average_depth, max_length, min_l
         sonar_range = 35
     return beam_width, sound_speed, average_depth, max_length, min_length, sonar_range
 
-
 def calculate_ping_rate(sonar_range, sound_speed, frequency):
     """Calcula a taxa de ping a partir do alcance do sonar e da velocidade do som."""
     frequency_hz = frequency * 1000
@@ -48,12 +44,10 @@ def calculate_ping_rate(sonar_range, sound_speed, frequency):
     ping_rate_hz = 1 / ping_rate
     return ping_rate_hz
 
-
 def calculate_sonar_footprint(beam_width, sonar_range):
     """Calcula a pegada do sonar com base na largura do feixe e na profundidade média."""
     half_beam_width_radians = np.radians(beam_width / 2)
     return 2 * sonar_range * np.tan(half_beam_width_radians)
-
 
 def calculate_velocity(sonar_footprint, ping_rate_hz):
     """Calcula a velocidade de navegação com base na pegada do sonar e na taxa de ping."""
@@ -61,11 +55,9 @@ def calculate_velocity(sonar_footprint, ping_rate_hz):
     velocity_knots = velocity_m_s * 1.944
     return velocity_m_s, velocity_knots
 
-
-def calculate_survey_time(reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines,min_length,
+def calculate_survey_time(reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines, min_length,
                           max_length, nav_speed, contour_length):
     """Calcula o tempo estimado para o levantamento das linhas."""
-
     nav_speed_ms = nav_speed / 1.944
     survey_time_minutes = ((total_reg_lines * min_length + total_cross_lines * max_length + contour_length) / nav_speed_ms) / 60
     survey_time_rounded = round(survey_time_minutes)
@@ -80,53 +72,49 @@ def calculate_survey_time(reg_line_spacing, cross_line_spacing, total_reg_lines,
 
     return survey_time_rounded, total_time, unit
 
-
 def line_spacing(area, max_length, min_length, selected_option, average_depth, reg_line_spacing, cross_line_spacing,
-                  scale, generate_cross_lines):
+                 scale, generate_cross_lines):
     km = max_length / 1000
     hectares = area / 10000
 
     if selected_option == 'Normam':
-
         reg_line_spacing = max(3 * average_depth, 25)
         if generate_cross_lines:
             cross_line_spacing = 10 * reg_line_spacing
-        else: cross_line_spacing = 0
-        
-    elif selected_option == 'ANA-UHE':
+        else:
+            cross_line_spacing = 0
 
+    elif selected_option == 'ANA-UHE':
         rls_km = (0.35 * (hectares ** 0.35)) / km
         reg_line_spacing = rls_km * 1000
-        if generate_cross_lines: 
+        if generate_cross_lines:
             cross_line_spacing = 3 * reg_line_spacing
-        else: cross_line_spacing = 0
+        else:
+            cross_line_spacing = 0
 
     elif selected_option == 'ANA-PCH':
-
         rls_km = (0.1 * (hectares ** 0.25)) / km
         reg_line_spacing = rls_km * 1000
         if generate_cross_lines:
             cross_line_spacing = 3 * reg_line_spacing
-        else: cross_line_spacing = 0
+        else:
+            cross_line_spacing = 0
 
     elif selected_option == 'Personalizado':
-
         reg_line_spacing = reg_line_spacing
         cross_line_spacing = cross_line_spacing
 
     elif selected_option == "Escala":
-
         reg_line_spacing = reg_line_spacing
         cross_line_spacing = cross_line_spacing
 
-    if cross_line_spacing >= min_length/2:
+    if cross_line_spacing >= min_length / 2:
         cross_line_spacing = min_length / 3
 
     total_reg_lines = round(max_length / reg_line_spacing)
     total_cross_lines = round(min_length / cross_line_spacing)
 
     return reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines
-
 
 def draw_footprint(coverage_percentage):
     fig, ax = plt.subplots(figsize=(10, 5))
@@ -137,8 +125,7 @@ def draw_footprint(coverage_percentage):
     spacing = diameter * (1 - coverage_percentage / 100)  # Calcula o espaçamento com base na porcentagem de cobertura
 
     for i in range(5):
-        circle = plt.Circle((10 + i * (diameter + spacing), 90), diameter / 2, edgecolor='red', facecolor='none',
-                            lw=1)
+        circle = plt.Circle((10 + i * (diameter + spacing), 90), diameter / 2, edgecolor='red', facecolor='none', lw=1)
         ax.add_patch(circle)
 
     ax.set_xlim(0, 50 + 5 * (diameter + spacing))
@@ -146,10 +133,9 @@ def draw_footprint(coverage_percentage):
     ax.set_aspect('equal', 'box')
     ax.axis('off')
 
-    st.pyplot(fig)
+    plt.show()
 
-
-def generate_pdf_report(results, title="Relatório de Resultados"):  # generating report with the previous results
+def generate_pdf_report(results, title="Relatório de Resultados"):
     logo_path = 'icon.png'
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
@@ -226,7 +212,6 @@ def extract_files(uploaded_file, temp_dir):
     elif uploaded_file.name.endswith('.rar'):
         with rarfile.RarFile(uploaded_file, 'r') as rar_ref:
             rar_ref.extractall(temp_dir)
-
     else:
         raise ValueError("Formato de arquivo não suportado. Por favor, envie um arquivo ZIP.")
 
@@ -249,67 +234,112 @@ def calculate_axes_lengths(shapefile_path):
 
     # Retornar as coordenadas dos eixos e seus comprimentos
     axes_info = {
-        #'Eixo norte-sul\n ': {'min_y': bounds[1], 'max_y': bounds[3],
         'comprimento em y': f'{length_ns}',
-        #'Eixo leste-oeste\n': {'min_x': bounds[0], 'max_x': bounds[2],
         'comprimento em x': f'{length_ew}'
     }
 
     return axes_info
 
-
-def plot_shapefile_with_shp_axes(shapefile_path, shp_file_path):
-    # Carregar os shapefiles
+def find_main_axe(shapefile_path, num_pontos=50, nome_arquivo_saida='eixo_principal.shp'):
     try:
+        # 1. Carregar o shapefile
         gdf = gpd.read_file(shapefile_path)
-        gdf_shp = gpd.read_file(shp_file_path)
+        
+        # Verificar se o arquivo contém geometria
+        if gdf.empty:
+            raise ValueError("O shapefile está vazio.")
+        
+        geometria = gdf.geometry.iloc[0]
+        
+        # Função para converter geometria para um Polígono
+        def converter_para_poligono(geom):
+            if isinstance(geom, Polygon):
+                return geom
+            elif isinstance(geom, MultiPolygon):
+                return unary_union(geom).convex_hull
+            elif isinstance(geom, LineString):
+                # Verificar se o LineString é fechado
+                if geom.is_ring:
+                    return Polygon(geom)
+                else:
+                    raise TypeError("O LineString não é fechado e não pode ser convertido em Polígono.")
+            else:
+                raise TypeError("A geometria no shapefile não é um Polígono, MultiPolígono ou LineString fechado.")
+        
+        # Converter a geometria para um Polígono simples
+        polygon = converter_para_poligono(geometria)
+
+        # 2. Calcular o centróide do polígono
+        centroide = polygon.centroid
+
+        # 3. Gerar uma grade de pontos ao longo do comprimento do polígono
+        x, y = polygon.exterior.coords.xy
+        coords = np.array(list(zip(x, y)))
+
+        # 4. Calcular a matriz de covariância das coordenadas
+        cov = np.cov(coords.T)
+
+        # 5. Aplicar Análise de Componentes Principais (PCA) para o eixo principal geral
+        eigenvalues, eigenvectors = np.linalg.eig(cov)
+        principal_axis_vector = eigenvectors[:, np.argmax(eigenvalues)]
+
+        # 6. Dividir o polígono em segmentos longitudinais e calcular o eixo local para cada segmento
+        comprimento_total = polygon.length
+        espacamento = comprimento_total / num_pontos
+        pontos_eixo = []
+
+        # 7. Gerar pontos ao longo do eixo principal seguindo o contorno do polígono
+        for i in range(num_pontos):
+            # Calcular a posição ao longo do eixo, ajustando ao contorno
+            dist = i * espacamento
+            point_on_polygon = polygon.interpolate(dist)
+
+            # Criar um vetor local perpendicular ao eixo principal
+            offset_vector = np.array([-principal_axis_vector[1], principal_axis_vector[0]])  # Perpendicular
+
+            # Determinar o ponto do eixo principal localmente, com um pequeno ajuste
+            ponto_local = Point(point_on_polygon.x + offset_vector[0] * espacamento, 
+                                point_on_polygon.y + offset_vector[1] * espacamento)
+
+            pontos_eixo.append(ponto_local)
+
+        # 8. Conectar os pontos para formar uma linha poligonal (eixo principal)
+        eixo_principal = LineString([p.coords[0] for p in pontos_eixo])
+
+        # 9. Criar um GeoDataFrame para armazenar o eixo principal
+        gdf_eixo = gpd.GeoDataFrame(geometry=[eixo_principal], crs=gdf.crs)
+
+        # 10. Definir o caminho para salvar o shapefile
+        axe_shapefile_path = os.path.join(os.getcwd(), nome_arquivo_saida)
+
+        # 11. Salvar o GeoDataFrame com o eixo em um shapefile
+        gdf_eixo.to_file(axe_shapefile_path)
+
+        # 12. Retornar o caminho do arquivo shapefile gerado
+        return axe_shapefile_path
+    
     except Exception as e:
-        st.error(f"Erro ao carregar os arquivos shapefile: {e}")
-        return
+        return f"Erro ao processar o arquivo: {str(e)}"
 
-    # Verificar se o shapefile principal é um polígono
-    if not all(gdf.geometry.type == 'Polygon'):
-        st.error("O arquivo principal deve conter geometrias do tipo polígono.")
-        return
+def plot_shapefile_with_shp_axes(shapefile_path, axe_shapefile_path):
+    gdf = gpd.read_file(shapefile_path)
+    gdf_axe = gpd.read_file(axe_shapefile_path)
 
-    # Verificar se o arquivo de eixos é uma linha
-    if not all(gdf_shp.geometry.type == 'LineString'):
-        st.error("O arquivo de eixos deve conter geometrias do tipo linha.")
-        return
-
-    # Garantir que ambos os shapefiles estejam em CRS UTM
     gdf = ensure_utm_crs(gdf)
     gdf_axe = ensure_utm_crs(gdf_axe)
 
-    # Criar figura e eixos
     fig, ax = plt.subplots(figsize=(10, 10))
 
-    # Plotar o shapefile principal (polígono)
-    gdf.plot(ax=ax, color='lightblue', edgecolor='black', label='Polígono (Reservatório)')
-
-    # Plotar o arquivo de eixos (linha)
-    gdf_shp.boundary.plot(ax=ax, color='red', linewidth=1, label='Eixos do arquivo .shp')
-
-    # Plotar contorno do polígono
+    gdf.plot(ax=ax, color='lightblue', edgecolor='black')
+    gdf_axe.boundary.plot(ax=ax, color='red', linewidth=1, label='Eixos do arquivo .shp')
     gdf.boundary.plot(ax=ax, color='purple', linewidth=1, label='Contorno do reservatório')
 
-    # Definir título e rótulos dos eixos
-    plt.title('Visualização do Arquivo com o Eixo')
-    plt.xlabel('Coordenada UTM (Eixo X)')
-    plt.ylabel('Coordenada UTM (Eixo Y)')
-    
-    # Manter proporção correta no gráfico
-    ax.set_aspect('equal')
-
-    # Mostrar legenda
+    plt.title('Visualização do Arquivo com o eixo')
+    plt.xlabel('X')
+    plt.ylabel('Y')
     plt.legend()
-
-    # Remover grid
     plt.grid(False)
-
-    # Exibir o gráfico no Streamlit
-    st.pyplot(fig)
-
+    plt.show()
 
 def plot_shapefile_with_axes(shapefile_path):
     """Plota o shapefile com os eixos norte-sul e leste-oeste passando pelo centróide."""
@@ -345,17 +375,14 @@ def plot_shapefile_with_axes(shapefile_path):
     ax.add_line(ew_line)
 
     # Ajustar a visualização
-    plt.title('Visualização do Arquivo com Eixos pelo Centróide')
-    plt.xlabel('UTM (Eixo X)')
-    plt.ylabel('UTM (Eixo Y)')
+    plt.title('Visualização do Arquivo com Eixos  passando pelo Centróide')
+    plt.xlabel('X')
+    plt.ylabel('Y')
     plt.legend()
     plt.grid(False)
-    st.pyplot(fig)
+    plt.show()
 
-#######
-
-
-def plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing):  # modify the function to receive gdf axe length
+def plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing):
     """Plota o shapefile com linhas regulares e de verificação dentro da área do polígono e uma linha de contorno."""
     # Verificar se o input é uma string e carregar o GeoDataFrame se necessário
     if isinstance(gdf, str):
@@ -374,120 +401,19 @@ def plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing):  # mod
     # Criar GeoDataFrames para as linhas
     grid_lines = []
 
-    # Criar linhas de verificação (verticais)
+    # Criar linhas regulares (verticais)
     current_x = bounds[0]
     while current_x <= bounds[2]:
         line = LineString([(current_x, bounds[1]), (current_x, bounds[3])])
         grid_lines.append(line)
         current_x += cross_line_spacing
 
-    # Criar linhas regulares (horizontais)
+    # Criar linhas de verificação (horizontais)
     current_y = bounds[1]
     while current_y <= bounds[3]:
-        line = LineString([(bounds[0], current_y), (bounds[2], current_y)])
-        grid_lines.append(line)
-        current_y += reg_line_spacing
-
-    # Criar GeoDataFrame para as linhas de grid
-    gdf_grid_lines = gpd.GeoDataFrame(geometry=grid_lines, crs=gdf.crs)
-
-    # Realizar a interseção para garantir que as linhas de grid fiquem dentro do contorno com buffer
-    gdf_grid_lines = gpd.overlay(gdf_grid_lines, gdf_contour, how='intersection')
-
-    # Salvar os shapefiles modificados em um diretório temporário
-    temp_dir = tempfile.mkdtemp()
-    try:
-        # Shapefile das linhas de grid
-        grid_lines_shapefile_path = os.path.join(temp_dir, "shapefile_linhas_grid.shp")
-        gdf_grid_lines.to_file(grid_lines_shapefile_path)
-
-        # Shapefile do contorno
-        contour_shapefile_path = os.path.join(temp_dir, "shapefile_contorno.shp")
-        gdf_contour.to_file(contour_shapefile_path)
-
-        # Exibir o gráfico
-        fig, ax = plt.subplots(figsize=(10, 10))
-        gdf.plot(ax=ax, color='lightblue', edgecolor='black')
-        gdf_grid_lines.plot(ax=ax, color='red', linestyle='-', label='Linhas de Sondagem')
-        gdf_contour.boundary.plot(ax=ax, color='purple', linewidth=1, label='Contorno do reservatório')
-
-        plt.title('Visualização do Arquivo com Linhas de Sondagem e Contorno')
-        plt.xlabel('X')
-        plt.ylabel('Y')
-        plt.legend()
-        plt.grid(False)
-        st.pyplot(fig)
-
-        return temp_dir, [grid_lines_shapefile_path, contour_shapefile_path] 
-     # Retorna o diretório e os caminhos dos arquivos shapefiles
-    except Exception as e:
-        st.error(f"Erro ao criar shapefiles: {e}")
-        return None, None
-
-def plot_shapefile_with_grids_shp(gdf, reg_line_spacing, cross_line_spacing, gdf_axe=None): ###################################
-    """Plota o shapefile com linhas regulares e de verificação dentro da área do polígono e uma linha de contorno."""
-    # Verificar se o input é uma string e carregar o GeoDataFrame se necessário
-    if isinstance(gdf, str):
-        gdf = gpd.read_file(gdf)
-
-    # Garantir que o CRS esteja em UTM para medidas precisas
-    gdf = ensure_utm_crs(gdf)
-
-    # Criar a linha de contorno com um buffer de 10 metros para dentro
-    gdf_contour = gdf.copy()
-    gdf_contour['geometry'] = gdf_contour.buffer(-10)
-
-    # Obter os limites do shapefile
-    bounds = gdf_contour.total_bounds  # [minx, miny, maxx, maxy]
-
-    # Criar GeoDataFrames para as linhas
-    grid_lines = []
-
-    if gdf_axe is not None and not gdf_axe.empty:
-        # Garantir que o CRS do gdf_axe esteja em UTM para medidas precisas
-        gdf_axe = ensure_utm_crs(gdf_axe)
-
-        # Gerar linhas de verificação paralelas ao eixo principal (gdf_axe)
-        for line in gdf_axe.geometry:
-            current_offset = 0
-            while current_offset <= bounds[2] - bounds[0]:
-                offset_line = line.parallel_offset(current_offset, 'left')
-                grid_lines.append(offset_line)
-                current_offset += cross_line_spacing
-
-        # Gerar linhas de sondagem perpendiculares ao eixo principal (gdf_axe)
-        for line in gdf_axe.geometry:
-            line_coords = list(line.coords)
-            for i in range(len(line_coords) - 1):
-                x1, y1 = line_coords[i]
-                x2, y2 = line_coords[i + 1]
-
-                # Calcular a inclinação perpendicular
-                dx = x2 - x1
-                dy = y2 - y1
-                length = (dx**2 + dy**2)**0.5
-                perp_dx = -dy / length * reg_line_spacing
-                perp_dy = dx / length * reg_line_spacing
-
-                current_y = bounds[1]
-                while current_y <= bounds[3]:
-                    perp_line = LineString([(x1 + perp_dx * k, y1 + perp_dy * k) for k in range(int((bounds[2] - bounds[0]) / reg_line_spacing))])
-                    grid_lines.append(perp_line)
-                    current_y += reg_line_spacing
-    else:
-        # Criar linhas de verificação (verticais) usando a lógica original
-        current_x = bounds[0]
-        while current_x <= bounds[2]:
-            line = LineString([(current_x, bounds[1]), (current_x, bounds[3])])
-            grid_lines.append(line)
-            current_x += cross_line_spacing
-
-        # Criar linhas regulares (horizontais) usando a lógica original
-        current_y = bounds[1]
-        while current_y <= bounds[3]:
-            line = LineString([(bounds[0], current_y), (bounds[2], current_y)])
-            grid_lines.append(line)
-            current_y += reg_line_spacing
+          line = LineString([(bounds[0], current_y), (bounds[2], current_y)])
+          grid_lines.append(line)
+          current_y += reg_line_spacing
 
     # Criar GeoDataFrame para as linhas de grid
     gdf_grid_lines = gpd.GeoDataFrame(geometry=grid_lines, crs=gdf.crs)
@@ -517,29 +443,24 @@ def plot_shapefile_with_grids_shp(gdf, reg_line_spacing, cross_line_spacing, gdf
         plt.ylabel('Latitude')
         plt.legend()
         plt.grid(False)
-        st.pyplot(fig)
+        plt.show()
 
         return temp_dir, [grid_lines_shapefile_path, contour_shapefile_path] 
-     # Retorna o diretório e os caminhos dos arquivos shapefiles
     except Exception as e:
-        st.error(f"Erro ao criar shapefiles: {e}")
+        print(f"Erro ao criar shapefiles: {e}")
         return None, None
-
-
-
 
 def create_zip_from_directory(directory_path, zip_name):
     """Cria um arquivo zip a partir de um diretório."""
     zip_path = shutil.make_archive(zip_name, 'zip', directory_path)
     return zip_path
 
-
 def download_shapefile_as_zip(temp_dir, file_paths):
     """Disponibiliza o shapefile processado como um arquivo ZIP para download."""
     zip_name = "shapefiles"
     zip_path = create_zip_from_directory(temp_dir, zip_name)
     with open(zip_path, "rb") as f:
-        st.download_button(label="Baixar Linhas Planejadas", data=f.read(), file_name=f"{zip_name}.zip", mime="application/zip")
+        return f.read()
 
     # Não remover o diretório temporário até que o download seja concluído
     return

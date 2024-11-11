@@ -21,38 +21,39 @@ def ajuda():
 def sobre():
     st.write("### Sobre")
     st.info("Easy Planning é uma aplicação web para planejamento de campanhas batimétricas. \n"
+    st.info("Easy Planning é uma aplicação web para planejamento de campanhas batimétricas. \n"
              "Desenvolvido por Lucas Costa (lucas.h.costa@ufv.br)  - Grupo de Pesquisa em Hidrografia - GPHIDRO. \n"
-             "Para mais informações, acesse: [GPHIDRO](https://gphidro.com.br/).\n o upload de arquivos de eixo ainda está em desenvolvimento")
+             "Para mais informações, acesse: [GPHIDRO](https://gphidro.com.br/).\n")
     
 
 
-def calculate(max_length, min_length,area, average_depth, sonar_range, sound_speed, beam_width, selected_option, frequency,
+def calculate(max_length, min_length,area, average_depth, sonar_range, sound_speed, beam_width, selected_option, generate_cross_lines, frequency,
               reg_line_spacing, cross_line_spacing, scale, contour_length ):
     try:
 
-        # Cálculo da taxa de ping
+        # ping rate calculation
         ping_rate_hz = f.calculate_ping_rate(sonar_range, sound_speed, frequency)
 
         area = area
 
-        # Cálculo da pegada do sonar
+        # sonar footprint calculation
         sonar_footprint = f.calculate_sonar_footprint(beam_width, sonar_range)
 
-        # Cálculo da velocidade de navegação
+        #navigation speed calculation
         velocity_m_s, velocity_knots = f.calculate_velocity(sonar_footprint, ping_rate_hz)
 
         reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines = f.line_spacing(
             area, max_length, min_length, selected_option, average_depth, reg_line_spacing, cross_line_spacing,
-            scale
+            scale, generate_cross_lines
         )
 
-        # Cálculo do tempo de levantamento
+        # survey time calculation
         survey_time_rounded, total_time, unit = f.calculate_survey_time(
             reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines, min_length, max_length,
             nav_speed, contour_length
         )
 
-        # Resultados
+        
         results = {
             'Área total do levantamento': f'{area:.2f} m²',
             'Ping Rate teórico máximo calculado': f'{ping_rate_hz:.2f} Hertz',
@@ -63,10 +64,10 @@ def calculate(max_length, min_length,area, average_depth, sonar_range, sound_spe
             'Velocidade de navegação máxima para uma cobertura de 100%': f'{velocity_knots:.2f} nós'
         }
 
-        # Gerar o relatório em PDF
+        # Generate PDF report
         pdf_file = f.generate_pdf_report(results, title="Relatório de Planejamento de Campanha Batimétrica")
 
-        # Garantir que pdf_file seja válido
+        
         if pdf_file is None:
             raise ValueError("Erro ao gerar o relatório em PDF.")
 
@@ -80,7 +81,7 @@ st.title(" GPHidro Easy Planning ", )
 st.write("Planejamento de campanhas batimétricas")
 
 
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 with col1:
     max_length = st.number_input("Comprimento máximo da área (m):", min_value=0.0, step=5.0,
                                  help='Comprimento da maior feição da área')
@@ -90,6 +91,12 @@ with col1:
                                     help='Profundidade média da área')
     nav_speed = st.number_input("Velocidade de navegação (nós):", min_value=0.0, step=1.0,
                                 help='Velocidade de navegação em nós')
+    coverage_percentage = st.slider("Cobertura do levantamento (%)", min_value=0, max_value=200, value=100,
+                                    help='Porcentagem de cobertura do levantamento')
+    st.write("### Cobertura do levantamento ao longo da linha:", coverage_percentage, "%")
+    f.draw_footprint(coverage_percentage) # alterar 
+
+with col2:
     sonar_range = st.number_input("Alcance do sonar (m):", min_value=0.0, step=5.0,
                                   help='Alcance do sonar em metros')
     sound_speed = st.number_input("Velocidade do som na água (m/s):", min_value=0.0, step=1.0,
@@ -100,41 +107,43 @@ with col1:
                                  help='Largura do feixe do sonar em graus')
     selected_option = st.selectbox("Escolha uma opção de espaçamento de linha:",
                                    ["Normam", "ANA-UHE", "ANA-PCH", "Escala", "Personalizado"])
-    coverage_percentage = st.slider("Cobertura do levantamento (%)", min_value=0, max_value=200, value=100,
-                                    help='Porcentagem de cobertura do levantamento')
-    st.write("### Cobertura do levantamento ao longo da linha:", coverage_percentage, "%")
-
+    generate_cross_lines = st.checkbox("Gerar Linhas de Verificação")
+    
     scale = 0
-    if selected_option == "Personalizado":
+    if selected_option == "Personalizado":     
         reg_line_spacing = st.number_input("Espaçamento das linhas regulares de sondagem (m):", min_value=0.0, step=5.0,
                                            help='Espaçamento das linhas regulares de sondagem')
-        cross_line_spacing = st.number_input("Espaçamento das linhas de verificação (m):", min_value=0.0, step=5.0,
+        if generate_cross_lines:
+            cross_line_spacing = st.number_input("Espaçamento das linhas de verificação (m):", min_value=0.0, step=5.0,
                                            help='Espaçamento das linhas de verificação')
+        else: cross_line_spacing = 0 
+        
     elif selected_option == "Escala":
         scale = st.number_input("Escala(1/xxx):", min_value=0.0, step=1.0, help='Escala da carta')
         reg_line_spacing = 0.005 * scale 
-        cross_line_spacing = reg_line_spacing * 10
+        if generate_cross_lines:
+            cross_line_spacing = reg_line_spacing * 10
+        else: cross_line_spacing = 0
 
     else:
         reg_line_spacing = 0
         cross_line_spacing = 0
         scale = 0
-    f.draw_footprint(coverage_percentage)
-
-with col2:
+    
     if st.button("Calcular"):
         area = max_length * min_length
         results, sonar_footprint, pdf_file = calculate(max_length, min_length, area, average_depth, sonar_range,
-                                                       sound_speed, beam_width, selected_option, frequency, reg_line_spacing ,
+                                                       sound_speed, beam_width, selected_option, generate_cross_lines, frequency, reg_line_spacing ,
                                                          cross_line_spacing, scale, contour_length = 0)
 
         if results:
-            st.write("### Resultados:")
-            for key, value in results.items():
-                st.write(f"{key}: {value}")
-            if pdf_file:
-                st.download_button(label="Baixar Relatório em PDF", data=pdf_file, file_name="Relatório.pdf",
-                                   mime="application/pdf")
+            with col3:
+                st.write("### Resultados:")
+                for key, value in results.items():
+                    st.write(f"{key}: {value}")
+                if pdf_file:
+                    st.download_button(label="Baixar Relatório em PDF", data=pdf_file, file_name="Relatório.pdf",
+                                    mime="application/pdf")
 
 with st.sidebar:
     st.header("Menu")
