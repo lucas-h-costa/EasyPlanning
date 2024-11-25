@@ -63,12 +63,13 @@ def calculate_velocity(sonar_footprint, ping_rate_hz):
 
 
 def calculate_survey_time(reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines,min_length,
-                          max_length, nav_speed, contour_length):
+                          max_length, nav_speed, contour_length, time_between_lines):
     """Calcula o tempo estimado para o levantamento das linhas."""
 
     nav_speed_ms = nav_speed / 1.944
     survey_time_minutes = ((total_reg_lines * min_length + total_cross_lines * max_length + contour_length) / nav_speed_ms) / 60
     survey_time_rounded = round(survey_time_minutes)
+    total_transladed_time = round((total_cross_lines+total_reg_lines) * time_between_lines)
 
     if survey_time_rounded >= 60:
         survey_time_rounded = round(survey_time_rounded / 60)
@@ -76,9 +77,9 @@ def calculate_survey_time(reg_line_spacing, cross_line_spacing, total_reg_lines,
     else:
         unit = 'minutos'
 
-    total_time = round(survey_time_rounded * 1.25)
+    total_time = round(survey_time_rounded + total_transladed_time)
 
-    return survey_time_rounded, total_time, unit
+    return total_time, unit
 
 
 def line_spacing(area, max_length, min_length, selected_option, average_depth, reg_line_spacing, cross_line_spacing,
