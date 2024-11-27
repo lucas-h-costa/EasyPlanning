@@ -125,64 +125,43 @@ with tab2:
             download_report()
        
 
-        file = st.file_uploader("Upload de arquivo KML", type=['zip', 'rar'])
-        axe = st.file_uploader("Upload do eixo do reservatório", type=['zip', 'rar'])
+        file = st.file_uploader("Upload de arquivo KML", type=['kml'])
+        axe = st.file_uploader("Upload do eixo do reservatório", type=['kml'])
 
         if file:
             if axe:  # Cálculo com eixo fornecido pelo usuário
-                with tempfile.TemporaryDirectory() as temp_dir:
-                    try:
-                        # Extrair arquivos do eixo e do shapefile principal
-                        st.write("Extraindo arquivos do eixo...")
-                        extracted_files_axe = f.extract_files(axe, temp_dir)
-                        st.write("Extraindo arquivos do shapefile principal...")
-                        extracted_files_shp = f.extract_files(file, temp_dir)
-
-                        # Verificar e identificar arquivos .shp extraídos
-                        shapefiles = [f for f in extracted_files_shp if f.endswith('.shp')]
-                        axe_files = [f for f in extracted_files_axe if f.endswith('.shp')]
-
-                        if not shapefiles: 
-                            st.error("O arquivo principal não contém um shapefile (.shp).")
-                        elif not axe_files: 
-                            st.error("O arquivo comprimido do eixo não contém um shapefile (.shp).")
-                        else:
-                            shp_file_path = axe_files[0]
-                            shapefile_path = shapefiles[0]
-
-                            # Ler os shapefiles extraídos
-                            st.write("Carregando o shapefile do eixo...")
-                            gdf_axe = gpd.read_file(shp_file_path)
-                            st.write("Carregando o shapefile principal...")
-                            gdf = gpd.read_file(shapefile_path)
-        
-                            # Verificar se o eixo e o shapefile principal foram carregados corretamente
-                            if gdf_axe.empty:
-                                st.error("O shapefile do eixo está vazio ou não pôde ser carregado.")
-                            elif gdf.empty:
-                                st.error("O shapefile principal está vazio ou não pôde ser carregado.")
-                            else:
-                                with st.sidebar:
+                       # Extrair arquivos do eixo e do shapefile principal
+                    st.write("Extraindo arquivos do eixo...")
+                    
+                                # Ler os shapefiles extraídos
+                    st.write("Carregando o shapefile do eixo...")
+                    gdf_axe = gpd.read_file(file, driver = 'kml')
+                    st.write("Carregando o shapefile principal...")
+                    gdf = gpd.read_file(file, driver = 'kml')
+            
+                                # Verificar se o eixo e o shapefile principal foram carregados corretamente
+                    if gdf_axe.empty:
+                        st.error("O kml do eixo está vazio ou não pôde ser carregado.")
+                    elif gdf.empty:
+                        st.error("O kml principal está vazio ou não pôde ser carregado.")
+                    else:
+                        with st.sidebar:
                                 # Calcular informações e áreas dos shapefiles
-                                    max_length = gdf_axe.geometry.length.sum()
-                                    st.write(f"Comprimento total do eixo: {max_length}")
+                            max_length = gdf_axe.geometry.length.sum()
+                            st.write(f"Comprimento total do eixo: {max_length}")
+                                            
+                            info = f.calculate_axes_lengths(file)
                                         
-                                    info = f.calculate_axes_lengths(shapefile_path)
-                                    
-                                    total_area = gdf.geometry.area.sum()
-                                    gdf_contour = gdf.copy()
-                                    gdf_contour['geometry'] = gdf_contour.buffer(-10)
-                                    contour_length = gdf_contour.boundary.length.sum()
-            
-                                    st.write(f"Área total calculada: {total_area:.2f} m²")
-            
-                                        # Plotar os shapefiles sobrepostos
-                                    f.plot_shapefile_with_shp_axes(shapefile_path, shp_file_path)
-
-                    except Exception as e:
-                        st.error(f"Erro ao processar os arquivos: {e}")
-
-
+                            total_area = gdf.geometry.area()
+                            gdf_contour = gdf.copy()
+                            gdf_contour['geometry'] = gdf_contour.buffer(-10)
+                            contour_length = gdf_contour.boundary.length.sum()
+                
+                            st.write(f"Área total calculada: {total_area:.2f} m²")
+                
+                                            # Plotar os shapefiles sobrepostos
+                            f.plot_shapefile_with_shp_axes(file, axe)
+                            
                         with col2:
                             if st.button("Planejar com arquivo SHP"):
                                 reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines =  f.line_spacing(area, float(info.get('comprimento em x')), float(info.get('comprimento em y')), selected_option, average_depth, reg_line_spacing, cross_line_spacing,
@@ -204,26 +183,22 @@ with tab2:
                                             file_name="Relatório.pdf", mime="application/pdf")'''
                                 
             else:     
-                with tempfile.TemporaryDirectory() as temp_dir:
                     try:    #calculating with axe from function  ####################################################################
-                        extracted_files = f.extract_files(file, temp_dir)
-                        shapefiles = [f for f in extracted_files if f.endswith('.shp')]
 
-                        if not shapefiles:
-                            st.error("O arquivo comprimido não contém um shapefile (.shp).")
+                        if not file:
+                            st.error("O arquivo comprimido não contém um kml.")
                         else:
-                            shapefile_path = shapefiles[0]
-                            gdf = gpd.read_file(shapefile_path)
+                            gdf = gpd.read_file(file)
                             total_area = gdf.geometry.area.sum()
                             gdf_contour = gdf.copy()
                             gdf_contour['geometry'] = gdf_contour.buffer(-10)
                             contour_length = gdf_contour.boundary.length.sum()
                             st.write(f"Área total calculada: {total_area:.2f} m^2")
-                            info = f.calculate_axes_lengths(shapefile_path)
+                            info = f.calculate_axes_lengths(file)
                             st.write(info)
-                            f.plot_shapefile_with_axes(shapefile_path)
+                            f.plot_shapefile_with_axes(file)
                             with col2:
-                                if st.button("Planejar com arquivo SHP"):     #calculate using shapefile props 
+                                if st.button("Planejar com arquivo kml"):     #calculate using shapefile props 
                                   reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines =  f.line_spacing(area, float(info.get('comprimento em x')), float(info.get('comprimento em y')), selected_option, average_depth, reg_line_spacing, cross_line_spacing,
                   scale, generate_cross_lines)
                                 with col3:

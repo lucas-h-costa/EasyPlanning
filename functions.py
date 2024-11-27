@@ -20,6 +20,7 @@ from reportlab.lib import colors
 from reportlab.platypus import Image
 from io import BytesIO
 from datetime import datetime
+from pyproj import CRS
 import shutil
 
 
@@ -207,17 +208,31 @@ def generate_pdf_report(results, title="Relatório de Resultados"):  # generatin
     # returning pdf file in bytes, to be used in the download button (streamlit can not deal with pdf files directly)
     return buffer.getvalue()
 
+def get_utm_crs(lat, long):
+    # Calcula a zona UTM com base na longitude
+    zona_utm = int((long + 180) / 6) + 1
+    
+    # Define se está no hemisfério norte ou sul
+    if lat >= 0:
+        epsg_code = f"326{zona_utm:02d}"  # UTM Norte
+    else:
+        epsg_code = f"327{zona_utm:02d}"  # UTM Sul
+
+    # Retorna o CRS correspondente
+    crs = CRS.from_epsg(int(epsg_code))
+    return crs
 def ensure_utm_crs(gdf):
     """Converte o CRS do GeoDataFrame para UTM, se necessário."""
-    if gdf.crs.is_projected:
-        return gdf
+    latitude = gdf.geometry.centroid.y[0]  # latitude do centróide do polígono
+    longitude = gdf.geometry.centroid.x[0]  # longitude do centróide do polígono
 
-    # Obtém o CRS EPSG da geometria central do GeoDataFrame
-    lon, lat = gdf.geometry.centroid.x.mean(), gdf.geometry.centroid.y.mean()
-    crs_utm = pyproj.CRS(
-        f"EPSG:{pyproj.CRS.from_proj(pyproj.Proj(proj='latlong', datum='WGS84')).to_proj4().split(' ')[-1]}")
-    gdf = gdf.to_crs(crs_utm.to_epsg())
-    return gdf
+# Determinar o CRS UTM correto
+    crs_utm = get_utm_crs(latitude, longitude)
+
+# Transformar o GeoDataFrame para o CRS UTM
+    gdf_utm = gdf.to_crs(crs_utm)
+    
+    return gdf_utm
 
 def extract_files(uploaded_file, temp_dir):
     """Extrai arquivos de um ZIP ou RAR e retorna o caminho dos arquivos extraídos."""
@@ -233,10 +248,10 @@ def extract_files(uploaded_file, temp_dir):
 
     return [os.path.join(temp_dir, f) for f in os.listdir(temp_dir)]
 
-def calculate_axes_lengths(shapefile_path):
-    """Calcula os comprimentos dos eixos norte-sul e leste-oeste de um shapefile."""
+def calculate_axes_lengths(file):
+    """Calcula os comprimentos dos eixos norte-sul e leste-oeste de um kml."""
     # Carregar o shapefile
-    gdf = gpd.read_file(shapefile_path)
+    gdf = gpd.read_file(file)
 
     # Verificar se o CRS é UTM para medidas precisas em metros
     gdf = ensure_utm_crs(gdf)
@@ -312,10 +327,10 @@ def plot_shapefile_with_shp_axes(shapefile_path, shp_file_path):
     st.pyplot(fig)
 
 
-def plot_shapefile_with_axes(shapefile_path):
+def plot_shapefile_with_axes(file):
     """Plota o shapefile com os eixos norte-sul e leste-oeste passando pelo centróide."""
     # Carregar o shapefile
-    gdf = gpd.read_file(shapefile_path)
+    gdf = gpd.read_file(file)
 
     # Garantir que o CRS esteja em UTM para medidas precisas
     gdf = ensure_utm_crs(gdf)
