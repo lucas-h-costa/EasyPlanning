@@ -112,10 +112,10 @@ with tab2:
                           )
             with col3:   
                 st.write(f"Tempo de levantamento calculado: {time:.2f} {unit}")
-    with tab3:
+with tab3:
         st.header('Cálculo de sobreposição')
         
-    with st.sidebar:
+with st.sidebar:
         st.header("Menu")
         if st.button("Ajuda"):
             ajuda()
@@ -129,94 +129,99 @@ with tab2:
         axe = st.file_uploader("Upload do eixo do reservatório", type=['kml'])
 
         if file:
-            if axe:  # Cálculo com eixo fornecido pelo usuário
-                       # Extrair arquivos do eixo e do shapefile principal
-                    st.write("Extraindo arquivos do eixo...")
+            if axe: 
+                try: # Cálculo com eixo fornecido pelo usuário
+                    with st.sidebar:   # Extrair arquivos do eixo e do shapefile principal
+                        st.write("Extraindo arquivos do eixo...")
+                        
+                                    # Ler os shapefiles extraídos
+                        st.write("Carregando o shapefile do eixo...")
+                        gdf_axe = gpd.read_file(file, driver = 'kml')
+                        st.write("Carregando o shapefile principal...")
+                        gdf = gpd.read_file(file, driver = 'kml')
+                
+                                    # Verificar se o eixo e o shapefile principal foram carregados corretamente
+                        if gdf_axe.empty:
+                            st.error("O kml do eixo está vazio ou não pôde ser carregado.")
+                        elif gdf.empty:
+                            st.error("O kml principal está vazio ou não pôde ser carregado.")
+                        else:
+                            
+                                    # Calcular informações e áreas dos shapefiles
+                                max_length = gdf_axe.geometry.length.sum()
+                                st.write(f"Comprimento total do eixo: {max_length}")
+                                                
+                                info = f.calculate_axes_lengths(file)
+                                gdf_utm = f.ensure_utm_crs(gdf)
+                                total_area = gdf_utm.geometry.area.sum()            
+                                gdf_contour = gdf.copy()
+                                gdf_contour['geometry'] = gdf_contour.buffer(-10)
+                                contour_length = gdf_contour.boundary.length.sum()
                     
-                                # Ler os shapefiles extraídos
-                    st.write("Carregando o shapefile do eixo...")
-                    gdf_axe = gpd.read_file(file, driver = 'kml')
-                    st.write("Carregando o shapefile principal...")
-                    gdf = gpd.read_file(file, driver = 'kml')
-            
-                                # Verificar se o eixo e o shapefile principal foram carregados corretamente
-                    if gdf_axe.empty:
-                        st.error("O kml do eixo está vazio ou não pôde ser carregado.")
-                    elif gdf.empty:
-                        st.error("O kml principal está vazio ou não pôde ser carregado.")
-                    else:
-                        with st.sidebar:
-                                # Calcular informações e áreas dos shapefiles
-                            max_length = gdf_axe.geometry.length.sum()
-                            st.write(f"Comprimento total do eixo: {max_length}")
+                                st.write(f"Área total calculada: {total_area:.2f} m²")
+                                st.write(info)
+                                                # Plotar os shapefiles sobrepostos
+                                f.plot_shapefile_with_shp_axes(file, axe)
+                            
+                    with tab1:   
+                                col1, col2, col3 = st.columns(3)
+                                with col2:
+                                    if st.button("Planejar com arquivo kml"):
+                                        reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines =  f.line_spacing(total_area, float(info.get('comprimento em x')), float(info.get('comprimento em y')), selected_option, average_depth, reg_line_spacing, cross_line_spacing,
+                        scale, generate_cross_lines)
+                                        with col3:
+                                            st.write(f"Espaçamento das linhas regulares de sondagem: {reg_line_spacing:.2f} m")
+                                            st.write(f"Espaçamento das linhas de verificação: {cross_line_spacing:.2f} m")
+                                            st.write(f"Total de linhas regulares de sondagem: {total_reg_lines}")
+                                            st.write(f"Total de linhas de verificação: {total_cross_lines}")
                                             
-                            info = f.calculate_axes_lengths(file)
-                                        
-                            total_area = gdf.geometry.area()
-                            gdf_contour = gdf.copy()
-                            gdf_contour['geometry'] = gdf_contour.buffer(-10)
-                            contour_length = gdf_contour.boundary.length.sum()
-                
-                            st.write(f"Área total calculada: {total_area:.2f} m²")
-                
-                                            # Plotar os shapefiles sobrepostos
-                            f.plot_shapefile_with_shp_axes(file, axe)
-                            
-                        with col2:
-                            if st.button("Planejar com arquivo SHP"):
-                                reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines =  f.line_spacing(area, float(info.get('comprimento em x')), float(info.get('comprimento em y')), selected_option, average_depth, reg_line_spacing, cross_line_spacing,
-                  scale, generate_cross_lines)
-                        with col3:
-                            st.write(f"Espaçamento das linhas regulares de sondagem: {reg_line_spacing:.2f} m")
-                            st.write(f"Espaçamento das linhas de verificação: {cross_line_spacing:.2f} m")
-                            st.write(f"Total de linhas regulares de sondagem: {total_reg_lines}")
-                            st.write(f"Total de linhas de verificação: {total_cross_lines}")
-                            
-                                  
-                            temp_dir, file_paths = f.plot_shapefile_with_grids_shp(gdf, reg_line_spacing, cross_line_spacing, gdf_axe)
+                                                
+                                            temp_dir, file_paths = f.plot_shapefile_with_grids_shp(gdf, reg_line_spacing, cross_line_spacing, gdf_axe)
 
-                                    # Disponibiliza o download do shapefile como um arquivo zip
-                            if temp_dir and file_paths:
-                                 f.download_shapefile_as_zip(temp_dir, file_paths)
-                            '''if pdf_file:
-                                    st.download_button(label="Baixar Relatório em PDF", key='pdf', data=pdf_file,
-                                            file_name="Relatório.pdf", mime="application/pdf")'''
-                                
+                                                    # Disponibiliza o download do shapefile como um arquivo zip
+                                            if temp_dir and file_paths:
+                                                f.download_shapefile_as_zip(temp_dir, file_paths)
+                                            '''if pdf_file:
+                                                    st.download_button(label="Baixar Relatório em PDF", key='pdf', data=pdf_file,
+                                                            file_name="Relatório.pdf", mime="application/pdf")'''
+                except Exception as e:
+                    st.error(f"Erro ao processar o arquivo: {e}")
+                                            
             else:     
                     try:    #calculating with axe from function  ####################################################################
-
-                        if not file:
-                            st.error("O arquivo comprimido não contém um kml.")
-                        else:
-                            gdf = gpd.read_file(file)
-                            total_area = gdf.geometry.area.sum()
-                            gdf_contour = gdf.copy()
-                            gdf_contour['geometry'] = gdf_contour.buffer(-10)
-                            contour_length = gdf_contour.boundary.length.sum()
-                            st.write(f"Área total calculada: {total_area:.2f} m^2")
-                            info = f.calculate_axes_lengths(file)
-                            st.write(info)
-                            f.plot_shapefile_with_axes(file)
+                        with st.sidebar:
+                                gdf = gpd.read_file(file)
+                                gdf_utm = f.ensure_utm_crs(gdf)
+                                total_area = gdf_utm.geometry.area.sum()
+                                gdf_contour = gdf.copy()
+                                gdf_contour['geometry'] = gdf_contour.buffer(-2)
+                                contour_length = gdf_contour.boundary.length.sum()
+                                st.write(f"Área total calculada: {total_area:.2f} m^2")
+                                info = f.calculate_axes_lengths(file)
+                                st.write(info)
+                                f.plot_shapefile_with_axes(file)
+                        with tab1:
+                            col1, col2, col3 = st.columns(3)
                             with col2:
-                                if st.button("Planejar com arquivo kml"):     #calculate using shapefile props 
-                                  reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines =  f.line_spacing(area, float(info.get('comprimento em x')), float(info.get('comprimento em y')), selected_option, average_depth, reg_line_spacing, cross_line_spacing,
-                  scale, generate_cross_lines)
-                                with col3:
-                                    st.write(f"Espaçamento das linhas regulares de sondagem: {reg_line_spacing:.2f} m")
-                                    st.write(f"Espaçamento das linhas de verificação: {cross_line_spacing:.2f} m")
-                                    st.write(f"Total de linhas regulares de sondagem: {total_reg_lines}")
-                                    st.write(f"Total de linhas de verificação: {total_cross_lines}")
-                            
-                                    '''st.download_button(label="Baixar Relatório em PDF", data=pdf_file, file_name="Relatório.pdf",
-                                                        mime="application/pdf")'''
-                                    temp_dir, file_paths = f.plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing)
+                                        if st.button("Planejar com arquivo kml"):     #calculate using shapefile props 
+                                            reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines =  f.line_spacing(total_area, float(info.get('comprimento em x')), float(info.get('comprimento em y')), selected_option, average_depth, reg_line_spacing, cross_line_spacing,
+                            scale, generate_cross_lines)
+                                            with col3:
+                                                st.write(f"Espaçamento das linhas regulares de sondagem: {reg_line_spacing:.2f} m")
+                                                st.write(f"Espaçamento das linhas de verificação: {cross_line_spacing:.2f} m")
+                                                st.write(f"Total de linhas regulares de sondagem: {total_reg_lines}")
+                                                st.write(f"Total de linhas de verificação: {total_cross_lines}")
+                                        
+                                                '''st.download_button(label="Baixar Relatório em PDF", data=pdf_file, file_name="Relatório.pdf",
+                                                                    mime="application/pdf")'''
+                                                temp_dir, file_paths = f.plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing)
 
-                                                # Disponibiliza o download do shapefile como um arquivo zip
-                                    if temp_dir and file_paths:
-                                        f.download_shapefile_as_zip(temp_dir, file_paths)
-                                    '''if pdf_file:
-                                        st.download_button(label="Baixar Relatório em PDF", key='pdf',data=pdf_file, file_name="Relatório.pdf",
-                                                        mime="application/pdf")'''
+                                                            # Disponibiliza o download do shapefile como um arquivo zip
+                                                if temp_dir and file_paths:
+                                                    f.download_shapefile_as_zip(temp_dir, file_paths)
+                                                '''if pdf_file:
+                                                    st.download_button(label="Baixar Relatório em PDF", key='pdf',data=pdf_file, file_name="Relatório.pdf",
+                                                                    mime="application/pdf")'''
                     except Exception as e:
                         st.error(f"Erro ao processar o arquivo: {e}")
 

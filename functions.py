@@ -274,11 +274,11 @@ def calculate_axes_lengths(file):
     return axes_info
 
 
-def plot_shapefile_with_shp_axes(shapefile_path, shp_file_path):
+def plot_shapefile_with_shp_axes(file, axe):
     # Carregar os shapefiles
     try:
-        gdf = gpd.read_file(shapefile_path)
-        gdf_shp = gpd.read_file(shp_file_path)
+        gdf = gpd.read_file(file)
+        gdf_axe = gpd.read_file(axe)
     except Exception as e:
         st.error(f"Erro ao carregar os arquivos shapefile: {e}")
         return
@@ -289,7 +289,7 @@ def plot_shapefile_with_shp_axes(shapefile_path, shp_file_path):
         return
 
     # Verificar se o arquivo de eixos é uma linha
-    if not all(gdf_shp.geometry.type == 'LineString'):
+    if not all(gdf_axe.geometry.type == 'LineString'):
         st.error("O arquivo de eixos deve conter geometrias do tipo linha.")
         return
 
@@ -304,7 +304,7 @@ def plot_shapefile_with_shp_axes(shapefile_path, shp_file_path):
     gdf.plot(ax=ax, color='lightblue', edgecolor='black', label='Polígono (Reservatório)')
 
     # Plotar o arquivo de eixos (linha)
-    gdf_shp.boundary.plot(ax=ax, color='red', linewidth=1, label='Eixos do arquivo .shp')
+    gdf_axe.plot(ax=ax, color='red', linewidth=2, label='Eixos do arquivo .kml')
 
     # Plotar contorno do polígono
     gdf.boundary.plot(ax=ax, color='purple', linewidth=1, label='Contorno do reservatório')
@@ -382,7 +382,7 @@ def plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing):  # mod
 
     # Criar a linha de contorno com um buffer de 10 metros para dentro
     gdf_contour = gdf.copy()
-    gdf_contour['geometry'] = gdf_contour.buffer(-10)
+    gdf_contour['geometry'] = gdf_contour.buffer(-2)
 
     # Obter os limites do shapefile
     bounds = gdf_contour.total_bounds  # [minx, miny, maxx, maxy]
@@ -440,18 +440,15 @@ def plot_shapefile_with_grids(gdf, reg_line_spacing, cross_line_spacing):  # mod
         st.error(f"Erro ao criar shapefiles: {e}")
         return None, None
 
-def plot_shapefile_with_grids_shp(gdf, reg_line_spacing, cross_line_spacing, gdf_axe=None): ###################################
+def plot_shapefile_with_grids_shp(gdf, reg_line_spacing, cross_line_spacing, gdf_axe=None): #######################MUDAR############
     """Plota o shapefile com linhas regulares e de verificação dentro da área do polígono e uma linha de contorno."""
-    # Verificar se o input é uma string e carregar o GeoDataFrame se necessário
-    if isinstance(gdf, str):
-        gdf = gpd.read_file(gdf)
 
     # Garantir que o CRS esteja em UTM para medidas precisas
     gdf = ensure_utm_crs(gdf)
 
     # Criar a linha de contorno com um buffer de 10 metros para dentro
     gdf_contour = gdf.copy()
-    gdf_contour['geometry'] = gdf_contour.buffer(-10)
+    gdf_contour['geometry'] = gdf_contour.buffer(-5)
 
     # Obter os limites do shapefile
     bounds = gdf_contour.total_bounds  # [minx, miny, maxx, maxy]
@@ -467,7 +464,7 @@ def plot_shapefile_with_grids_shp(gdf, reg_line_spacing, cross_line_spacing, gdf
         for line in gdf_axe.geometry:
             current_offset = 0
             while current_offset <= bounds[2] - bounds[0]:
-                offset_line = line.parallel_offset(current_offset, 'left')
+                offset_line = line.buffer(current_offset, 'left')
                 grid_lines.append(offset_line)
                 current_offset += cross_line_spacing
 
