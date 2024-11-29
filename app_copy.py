@@ -132,12 +132,7 @@ with st.sidebar:
             if axe: 
                 try: # Cálculo com eixo fornecido pelo usuário
                     with st.sidebar:   # Extrair arquivos do eixo e do shapefile principal
-                        st.write("Extraindo arquivos do eixo...")
-                        
-                                    # Ler os shapefiles extraídos
-                        st.write("Carregando o shapefile do eixo...")
-                        gdf_axe = gpd.read_file(file, driver = 'kml')
-                        st.write("Carregando o shapefile principal...")
+                        gdf_axe = gpd.read_file(axe, driver = 'kml')
                         gdf = gpd.read_file(file, driver = 'kml')
                 
                                     # Verificar se o eixo e o shapefile principal foram carregados corretamente
