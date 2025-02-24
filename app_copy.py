@@ -6,7 +6,6 @@ import pandas as pd
 import geopandas as gpd
 
 
-
 st.set_page_config(page_title="Easy Planning", page_icon="pageIcon.jpg", layout="wide")
 
 
@@ -48,11 +47,7 @@ with tab1:
 
     with col2:
         sonar_range = st.number_input("Alcance do sonar (m):", min_value=0.0, step=5.0,   #ttirar
-                                   help='Alcance do sonar em metros', key='sonar-range') #
-        #sound_speed = st.number_input("Velocidade do som na água (m/s):", min_value=0.0, step=1.0, #tirar
-                                  # help='Velocidade do som na água', key='sound_speed')
-        #beam_width = st.number_input("Largura do feixe (graus):", min_value=0.0, step=1.0, 
-                                   # help='Largura do feixe do sonar em graus', key='beam_width')
+                                   help='Alcance do sonar em metros', key='sonar-range') 
         selected_option = st.selectbox("Escolha uma opção de espaçamento de linha:",
                                     ["Normam", "ANA-UHE", "ANA-PCH", "Escala", "Personalizado"])
         generate_cross_lines = st.checkbox("Gerar Linhas de Verificação")
@@ -94,13 +89,10 @@ with tab2:
     with col1:
         nav_speed = st.number_input("Velocidade de navegação (nós):", min_value=0.0, step=1.0,
                                 help='Velocidade de navegação em nós', key='nav_speed')
-        coverage_percentage = st.number_input("Porcentagem de cobertura (%):", min_value=0.0, max_value=100.0, step=1.0,
-                                            help='Porcentagem de cobertura da área', key='coverage_percentage')
-        sonar_range = st.number_input("Alcance do sonar (m):", min_value=0.0, step=5.0,   #ttirar
-                                    help='Alcance do sonar em metros', key ='sonar_range' ) #
-    with col2:
         sound_speed = st.number_input("Velocidade do som na água (m/s):", min_value=0.0, step=1.0, #tirar
-                                    help='Velocidade do som na água', key='sound_speed')
+                                    help='Velocidade do som na água', key='sound_speed')#
+    with col2:
+       
         frequency = st.number_input("Frequência do sonar (kHz):", min_value=0.0, step=5.0, #tirar
                                     help='Frequência do sonar em kHz', key='frequency')
                 
@@ -113,7 +105,31 @@ with tab2:
             with col3:   
                 st.write(f"Tempo de levantamento calculado: {time:.2f} {unit}")
 with tab3:
-        st.header('Cálculo de sobreposição')
+   
+    st.header('Cálculo de sobreposição') ################################# testar 
+    col1, col2, col3 = st.columns(3)
+    with col1:
+            coverage_percentage = st.number_input("Porcentagem de cobertura (%):", min_value=0.0, max_value=100.0, step=1.0,
+                                            help='Porcentagem de cobertura da área', key='coverage_percentage')
+            beam_width = st.number_input("Largura do feixe do sonar (°):", min_value=0.0, step=1.0, 
+                                    help='Largura do feixe do sonar em graus', key='beam_width')
+            nav_speed = st.number_input("Velocidade de navegação (nós):", min_value=0.0, step=1.0,
+                                help='Velocidade de navegação em nós', key='nav_speed1')
+    with col2:
+            sound_speed = st.number_input("Velocidade do som na água (m/s):", min_value=0.0, step=1.0, #tirar
+                                    help='Velocidade do som na água', key='sound_speed1')#
+            sonar_range = st.number_input("Alcance do sonar (m):", min_value=0.0, step=5.0,   #ttirar
+                                   help='Alcance do sonar em metros', key='sonar-range1') 
+    with col3:
+            if st.button("gerar sobreposição"):
+                ping_rate_hz = f.calculate_ping_rate(sonar_range, sound_speed, frequency)
+                footprint = f.calculate_sonar_footprint(beam_width, sonar_range)
+                f.draw_footprint(coverage_percentage)
+                st.write(f"pegada de cobertura do sonar: {footprint:.2f} m²")
+                overlap = f.calculate_overlap(footprint, sonar_range, nav_speed, ping_rate_hz)
+                st.write(f"Sobreposição calculada: {overlap:.2f} m")
+            
+        
         
 with st.sidebar:
         st.header("Menu")
@@ -131,18 +147,19 @@ with st.sidebar:
         if file:
             if axe: 
                 try: # Cálculo com eixo fornecido pelo usuário
-                    with st.sidebar:   # Extrair arquivos do eixo e do shapefile principal
+                    with st.sidebar:   # Extrair arquivos do eixo e do poligono principal
                         gdf_axe = gpd.read_file(axe, driver = 'kml')
+                        gdf_axe['geometry'] = gdf_axe['geometry'].simplify(5, preserve_topology=True)
                         gdf = gpd.read_file(file, driver = 'kml')
                 
-                                    # Verificar se o eixo e o shapefile principal foram carregados corretamente
+                                    # Verificar se o eixo e o poligono principal foram carregados corretamente
                         if gdf_axe.empty:
                             st.error("O kml do eixo está vazio ou não pôde ser carregado.")
                         elif gdf.empty:
                             st.error("O kml principal está vazio ou não pôde ser carregado.")
                         else:
                             
-                                    # Calcular informações e áreas dos shapefiles
+                                    # Calcular informações e áreas dos poligonos
                                 max_length = gdf_axe.geometry.length.sum()
                                 st.write(f"Comprimento total do eixo: {max_length}")
                                                 
@@ -155,7 +172,7 @@ with st.sidebar:
                     
                                 st.write(f"Área total calculada: {total_area:.2f} m²")
                                 st.write(info)
-                                                # Plotar os shapefiles sobrepostos
+                                                # Plotar os poligonos sobrepostos
                                 f.plot_shapefile_with_shp_axes(file, axe)
                             
                     with tab1:   
@@ -171,7 +188,7 @@ with st.sidebar:
                                             st.write(f"Total de linhas de verificação: {total_cross_lines}")
                                             
                                                 
-                                            temp_dir, file_paths = f.plot_shapefile_with_grids_shp(gdf, reg_line_spacing, cross_line_spacing, gdf_axe)
+                                            temp_dir, file_paths = f.plot_shapefile_with_grids_shp(file, reg_line_spacing, cross_line_spacing, axe)
 
                                                     # Disponibiliza o download do shapefile como um arquivo zip
                                             if temp_dir and file_paths:

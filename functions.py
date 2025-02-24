@@ -23,29 +23,10 @@ from datetime import datetime
 from pyproj import CRS
 import shutil
 
-
-def set_default_values(beam_width, sound_speed, average_depth, max_length, min_length, sonar_range):
-    """Define valores padrão se não forem fornecidos."""
-    if beam_width is None:
-        beam_width = 8
-    if sound_speed is None:
-        sound_speed = 1500
-    if average_depth is None:
-        average_depth = 35
-    if max_length is None:
-        max_length = 1000
-    if min_length is None:
-        min_length = 100
-    if sonar_range is None:
-        sonar_range = 35
-    return beam_width, sound_speed, average_depth, max_length, min_length, sonar_range
-
-
 def calculate_ping_rate(sonar_range, sound_speed, frequency):
     """Calcula a taxa de ping a partir do alcance do sonar e da velocidade do som."""
     frequency_hz = frequency * 1000
-    double_range = 2 * sonar_range
-    ping_rate = (double_range / sound_speed) + 2 * (10/frequency_hz)
+    ping_rate = ((2*sonar_range) / sound_speed) + 2 * (10/frequency_hz)
     ping_rate_hz = 1 / ping_rate
     return ping_rate_hz
 
@@ -62,7 +43,9 @@ def calculate_velocity(sonar_footprint, ping_rate_hz):
     velocity_knots = velocity_m_s * 1.944
     return velocity_m_s, velocity_knots
 
-
+def calculate_overlap(footprint, sonar_range, nav_speed, ping_rate):
+    overlap_percentage  = (footprint * ping_rate) / (nav_speed * 2)/100
+    return overlap_percentage
 def calculate_survey_time(reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines,min_length,
                           max_length, nav_speed, contour_length, time_between_lines):
     """Calcula o tempo estimado para o levantamento das linhas."""
@@ -74,6 +57,7 @@ def calculate_survey_time(reg_line_spacing, cross_line_spacing, total_reg_lines,
 
     if survey_time_rounded >= 60:
         survey_time_rounded = round(survey_time_rounded / 60)
+        
         unit = 'horas'
     else:
         unit = 'minutos'
@@ -234,19 +218,6 @@ def ensure_utm_crs(gdf):
     
     return gdf_utm
 
-def extract_files(uploaded_file, temp_dir):
-    """Extrai arquivos de um ZIP ou RAR e retorna o caminho dos arquivos extraídos."""
-    if uploaded_file.name.endswith('.zip'):
-        with zipfile.ZipFile(uploaded_file, 'r') as zip_ref:
-            zip_ref.extractall(temp_dir)
-    elif uploaded_file.name.endswith('.rar'):
-        with rarfile.RarFile(uploaded_file, 'r') as rar_ref:
-            rar_ref.extractall(temp_dir)
-
-    else:
-        raise ValueError("Formato de arquivo não suportado. Por favor, envie um arquivo ZIP.")
-
-    return [os.path.join(temp_dir, f) for f in os.listdir(temp_dir)]
 
 def calculate_axes_lengths(file):
     """Calcula os comprimentos dos eixos norte-sul e leste-oeste de um kml."""
@@ -272,7 +243,6 @@ def calculate_axes_lengths(file):
     }
 
     return axes_info
-
 
 def plot_shapefile_with_shp_axes(file, axe):
     # Carregar os shapefiles
@@ -370,152 +340,113 @@ def plot_shapefile_with_axes(file):
 
 #######
 
-
-def plot_shapefile_with_grids_shp(gdf, reg_line_spacing, cross_line_spacing, gdf_axe):
+################ funcao para plotar tudo 
+def plot_shapefile_with_grids_shp(file, reg_line_spacing, cross_line_spacing, axe):
     """Função para gerar e plotar linhas de grid dentro do polígono de um reservatório."""
-
+    gdf = gpd.read_file(file)
+    axe_gdf = gpd.read_file(axe)
     # Verificar se todas as geometrias em gdf_axe são do tipo LineString
-    axe_geom_types = gdf_axe.geometry.geom_type.unique()
-    #st.write(f"Tipos de geometria no gdf_axe: {axe_geom_types}")  # Depuração
-    
-    gdf_axe = ensure_utm_crs(gdf_axe)
-    gdf = ensure_utm_crs(gdf)
-    
-    if not all(gdf_axe.geometry.type == 'LineString'):
-        raise ValueError(f'O gdf_axe deve conter apenas geometrias do tipo LineString. Tipos encontrados: {axe_geom_types}')
+    if not all(axe_gdf.geometry.geom_type == 'LineString'):
+        raise ValueError(f'O gdf_axe deve conter apenas geometrias do tipo LineString.')
 
-    # Garantir que todas as geometrias no gdf_axe sejam válidas (não conter valores inválidos como NaN ou infinito)
-    if gdf_axe.geometry.isnull().any() or gdf_axe.geometry.isin([None, float('nan'), float('inf'), float('-inf')]).any():
-        raise ValueError('As geometrias em gdf_axe contêm valores inválidos.')
+    axe_gdf = ensure_utm_crs(axe_gdf)
+    gdf = ensure_utm_crs(gdf)
 
     # Criar a linha de contorno com um buffer de 5 metros para dentro
     gdf_contour = gdf.copy()
-    gdf_contour['geometry'] = gdf_contour.buffer(-5)  # Criar buffer para garantir que as linhas fiquem dentro
+    gdf_contour['geometry'] = gdf_contour.buffer(-5).buffer(0)  # Corrigir possíveis geometrias inválidas
 
-    # Obter os limites do shapefile
-    bounds = gdf_contour.total_bounds  # [minx, miny, maxx, maxy]  # Depuração
+    # Obter os limites do shapefile (bounding box)
+    bounds = gdf_contour.total_bounds  # [minx, miny, maxx, maxy]
 
-    # Criar GeoDataFrames para as linhas
-    grid_lines = []
+    # Criar listas para armazenar as linhas
+    grid_lines_parallel = []  # Linhas paralelas (verificação)
+    grid_lines_perpendicular = []  # Linhas perpendiculares (regulares)
 
-    if gdf_axe is not None and not gdf_axe.empty:
-        # Gerar linhas de verificação paralelas ao eixo principal (gdf_axe)
-        for line in gdf_axe.geometry:
+    # **Gerar as linhas de verificação (paralelas ao eixo)**
+    if axe_gdf is not None and not axe_gdf.empty:
+        for line in axe_gdf.geometry:
             current_offset = 0
             while current_offset <= bounds[2] - bounds[0]:
                 try:
                     # Gerar linha paralela à esquerda
                     offset_line_left = line.parallel_offset(current_offset, side='left')  # Linha paralela ao eixo, lado esquerdo
-                    # Garantir que a linha de grid esteja dentro do contorno
-                    if offset_line_left.is_valid and offset_line_left.intersects(gdf_contour.unary_union):
-                        grid_lines.append(offset_line_left)
+                    grid_lines_parallel.append(offset_line_left)
 
                     # Gerar linha paralela à direita
                     offset_line_right = line.parallel_offset(current_offset, side='right')  # Linha paralela ao eixo, lado direito
-                    # Garantir que a linha de grid esteja dentro do contorno
-                    if offset_line_right.is_valid and offset_line_right.intersects(gdf_contour.unary_union):
-                        grid_lines.append(offset_line_right)
+                    grid_lines_parallel.append(offset_line_right)
                     
                     current_offset += cross_line_spacing
                 except Exception as e:
-                    st.write(f"Erro ao gerar linha paralela com offset {current_offset}: {e}")
+                    print(f"Erro ao gerar linha paralela com offset {current_offset}: {e}")
                     continue  # Se houver erro, continuar com o próximo valor de offset
 
-        # Gerar linhas de sondagem perpendiculares ao eixo principal (gdf_axe)
-        for line in gdf_axe.geometry:
-            line_coords = list(line.coords)
-            for i in range(len(line_coords) - 1):
-                try:
-                    # Usar apenas x e y, ignorando o valor de z (se presente)
-                    x1, y1 = line_coords[i][:2]  # Pega apenas x e y
-                    x2, y2 = line_coords[i + 1][:2]  # Pega apenas x e y
+    # **Gerar as linhas regulares (perpendiculares ao eixo) ao longo de toda a extensão**
+    for line in axe_gdf.geometry:
+        line_coords = list(line.coords)
+        for i in range(len(line_coords) - 1):
+            try:
+                x1, y1 = line_coords[i][:2]
+                x2, y2 = line_coords[i + 1][:2]
 
-                    # Calcular a inclinação perpendicular
-                    dx = x2 - x1
-                    dy = y2 - y1
-                    length = (dx**2 + dy**2)**0.5
-                    perp_dx = -dy / length * reg_line_spacing
-                    perp_dy = dx / length * reg_line_spacing
+                # Calcular o vetor unitário perpendicular
+                dx = x2 - x1
+                dy = y2 - y1
+                length = (dx**2 + dy**2)**0.5
+                perp_dx = -dy / length
+                perp_dy = dx / length
 
-                    # Ajuste: garantir que as linhas perpendiculares sejam geradas apenas dentro da área
-                    current_y = bounds[1]
-                    while current_y <= bounds[3]:
-                        # Gerar linha perpendicular no primeiro lado (lado 'normal')
-                        perp_line_1 = LineString([(x1 + perp_dx * k, y1 + perp_dy * k) for k in range(int((bounds[2] - bounds[0])/reg_line_spacing))]) # '''/ reg_line_spacing'''))])
-                        # Garantir que a linha de sondagem perpendicular esteja dentro do contorno
-                        #if perp_line_1.is_valid and perp_line_1.intersects(gdf_contour.unary_union):
-                        grid_lines.append(perp_line_1)
+                # Gerar as linhas perpendiculares ao longo da extensão da área
+                current_offset = bounds[1]  # Iniciar no limite mínimo da área
+                while current_offset <= bounds[3]:  # Até o limite máximo da área
+                    perp_line = LineString([
+                        (x1 + perp_dx * 10000, y1 + perp_dy * 10000),  # Multiplicar por um valor grande para cobrir a área
+                        (x1 - perp_dx * 10000, y1 - perp_dy * 10000)
+                    ])
+                    grid_lines_perpendicular.append(perp_line)
+                    current_offset += reg_line_spacing  # Adicionar o espaçamento regular
 
-                        # Gerar linha perpendicular no segundo lado (lado oposto)
-                        perp_line_2 = LineString([(x1 - perp_dx * k, y1 - perp_dy * k) for k in range(int((bounds[2] - bounds[0])/reg_line_spacing))]) #'''/ reg_line_spacing'''))])
-                        # Garantir que a linha de sondagem perpendicular esteja dentro do contorno
-                        #if perp_line_2.is_valid and perp_line_2.intersects(gdf_contour.unary_union):
-                        grid_lines.append(perp_line_2)
-                        
-                    current_y += reg_line_spacing
-                except Exception as e:
-                    st.write(f"Erro ao gerar linha perpendicular entre os pontos {line_coords[i]} e {line_coords[i+1]}: {e}")
-                    continue  # Se houver erro, continuar com o próximo par de pontos
+            except Exception as e:
+                print(f"Erro ao gerar linha perpendicular entre os pontos {line_coords[i]} e {line_coords[i+1]}: {e}")
+                continue
 
+    # **Verificação e plotagem**
+    if not grid_lines_perpendicular:
+        print("Nenhuma linha perpendicular (regular) foi gerada.")
     else:
-        # Criar linhas de verificação (verticais) usando a lógica original
-        current_x = bounds[0]
-        while current_x <= bounds[2]:
-            line = LineString([(current_x, bounds[1]), (current_x, bounds[3])])
-            # Garantir que a linha de grid esteja dentro do contorno
-            if line.is_valid and line.intersects(gdf_contour.unary_union):
-                grid_lines.append(line)
-            current_x += cross_line_spacing
+        print(f"{len(grid_lines_perpendicular)} linhas perpendiculares (regulares) foram geradas com sucesso!")
 
-        # Criar linhas regulares (horizontais) usando a lógica original
-        current_y = bounds[1]
-        while current_y <= bounds[3]:
-            line = LineString([(bounds[0], current_y), (bounds[2], current_y)])
-            # Garantir que a linha de grid esteja dentro do contorno
-            if line.is_valid and line.intersects(gdf_contour.unary_union):
-                grid_lines.append(line)
-            current_y += reg_line_spacing
+    # Criar GeoDataFrames para as linhas de grid
+    gdf_grid_lines_parallel = gpd.GeoDataFrame(geometry=grid_lines_parallel, crs=gdf.crs)
+    gdf_grid_lines_perpendicular = gpd.GeoDataFrame(geometry=grid_lines_perpendicular, crs=gdf.crs)
 
-    # Criar GeoDataFrame para as linhas de grid
-    gdf_grid_lines = gpd.GeoDataFrame(geometry=grid_lines, crs=gdf.crs)
-
-    # Realizar a interseção para garantir que as linhas de grid fiquem dentro do contorno com buffer
-    gdf_grid_lines = gpd.overlay(gdf_grid_lines, gdf_contour, how='intersection')
+    # Realizar a interseção para garantir que as linhas fiquem dentro do contorno
+    gdf_grid_lines_parallel = gpd.overlay(gdf_grid_lines_parallel, gdf_contour, how='intersection')
+    gdf_grid_lines_perpendicular = gpd.overlay(gdf_grid_lines_perpendicular, gdf_contour, how='intersection')
 
     # Salvar os shapefiles modificados em um diretório temporário
     temp_dir = tempfile.mkdtemp()
     try:
-        # Shapefile das linhas de grid
-        grid_lines_shapefile_path = os.path.join(temp_dir, "shapefile_linhas_grid.shp")
-        gdf_grid_lines.to_file(grid_lines_shapefile_path)
+        # Shapefile das linhas paralelas
+        parallel_shapefile_path = os.path.join(temp_dir, "shapefile_linhas_paralelas.shp")
+        gdf_grid_lines_parallel.to_file(parallel_shapefile_path)
 
-        # Shapefile do contorno
-        contour_shapefile_path = os.path.join(temp_dir, "shapefile_contorno.shp")
-        gdf_contour.to_file(contour_shapefile_path)
+        # Shapefile das linhas perpendiculares
+        perpendicular_shapefile_path = os.path.join(temp_dir, "shapefile_linhas_perpendiculares.shp")
+        gdf_grid_lines_perpendicular.to_file(perpendicular_shapefile_path)
 
         # Exibir o gráfico
         fig, ax = plt.subplots(figsize=(10, 10))
-        gdf.plot(ax=ax, color='lightblue', edgecolor='black')
-        gdf_grid_lines.plot(ax=ax, color='red', linestyle='-', label='Linhas de Sondagem')
-        gdf_contour.boundary.plot(ax=ax, color='purple', linewidth=1, label='Contorno do reservatório')
+        gdf.plot(ax=ax, color='lightblue', edgecolor='black')  # Polígono do reservatório
+        gdf_grid_lines_parallel.plot(ax=ax, color='red', linestyle='-', label='Linhas Paralelas')  # Linhas paralelas
+        gdf_grid_lines_perpendicular.plot(ax=ax, color='green', linestyle='--', label='Linhas Perpendiculares')  # Linhas perpendiculares
+        ax.set_title("Linhas de Grid Geradas")
+        ax.legend()
+        plt.show()
 
-        plt.title('Visualização do Arquivo com Linhas de Sondagem e Contorno')
-        plt.xlabel('Longitude')
-        plt.ylabel('Latitude')
-        plt.legend()
-        plt.grid(False)
-        st.pyplot(fig)
-
-        return temp_dir, [grid_lines_shapefile_path, contour_shapefile_path]
     except Exception as e:
-        st.error(f"Erro ao criar shapefiles: {e}")
-        return None, None
-
-
-
-
-
-
+        print(f"Erro ao salvar ou exibir as linhas: {e}")
 
 def create_zip_from_directory(directory_path, zip_name):
     """Cria um arquivo zip a partir de um diretório."""
