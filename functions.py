@@ -30,12 +30,10 @@ def calculate_ping_rate(sonar_range, sound_speed, frequency):
     ping_rate_hz = 1 / ping_rate
     return ping_rate_hz
 
-
 def calculate_sonar_footprint(beam_width, sonar_range):
     """Calcula a pegada do sonar com base na largura do feixe e na profundidade média."""
     half_beam_width_radians = np.radians(beam_width / 2)
     return 2 * sonar_range * np.tan(half_beam_width_radians)
-
 
 def calculate_velocity(sonar_footprint, ping_rate_hz):
     """Calcula a velocidade de navegação com base na pegada do sonar e na taxa de ping."""
@@ -65,7 +63,6 @@ def calculate_survey_time(reg_line_spacing, cross_line_spacing, total_reg_lines,
     total_time = round(survey_time_rounded + total_transladed_time)
 
     return total_time, unit
-
 
 def line_spacing(area, max_length, min_length, selected_option, average_depth, reg_line_spacing, cross_line_spacing,
                   scale, generate_cross_lines):
@@ -109,10 +106,12 @@ def line_spacing(area, max_length, min_length, selected_option, average_depth, r
         cross_line_spacing = min_length / 3
 
     total_reg_lines = round(max_length / reg_line_spacing)
-    total_cross_lines = round(min_length / cross_line_spacing)
+    if generate_cross_lines:
+        total_cross_lines = round(min_length / cross_line_spacing)
+    else:
+        total_cross_lines = 0
 
     return reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines
-
 
 def draw_footprint(coverage_percentage):
     fig, ax = plt.subplots(figsize=(10, 5))
@@ -133,7 +132,6 @@ def draw_footprint(coverage_percentage):
     ax.axis('off')
 
     st.pyplot(fig)
-
 
 def generate_pdf_report(results, title="Relatório de Resultados"):  # generating report with the previous results
     logo_path = 'icon.png'
@@ -192,59 +190,8 @@ def generate_pdf_report(results, title="Relatório de Resultados"):  # generatin
     # returning pdf file in bytes, to be used in the download button (streamlit can not deal with pdf files directly)
     return buffer.getvalue()
 
-def get_utm_crs(lat, long):
-    # Calcula a zona UTM com base na longitude
-    zona_utm = int((long + 180) / 6) + 1
-    
-    # Define se está no hemisfério norte ou sul
-    if lat >= 0:
-        epsg_code = f"326{zona_utm:02d}"  # UTM Norte
-    else:
-        epsg_code = f"327{zona_utm:02d}"  # UTM Sul
 
-    # Retorna o CRS correspondente
-    crs = CRS.from_epsg(int(epsg_code))
-    return crs
-def ensure_utm_crs(gdf):
-    """Converte o CRS do GeoDataFrame para UTM, se necessário."""
-    latitude = gdf.geometry.centroid.y[0]  # latitude do centróide do polígono
-    longitude = gdf.geometry.centroid.x[0]  # longitude do centróide do polígono
-
-# Determinar o CRS UTM correto
-    crs_utm = get_utm_crs(latitude, longitude)
-
-# Transformar o GeoDataFrame para o CRS UTM
-    gdf_utm = gdf.to_crs(crs_utm)
-    
-    return gdf_utm
-
-
-def calculate_axes_lengths(file):
-    """Calcula os comprimentos dos eixos norte-sul e leste-oeste de um kml."""
-    # Carregar o shapefile
-    gdf = gpd.read_file(file)
-
-    # Verificar se o CRS é UTM para medidas precisas em metros
-    gdf = ensure_utm_crs(gdf)
-
-    # Obter as coordenadas de limite (bounding box)
-    bounds = gdf.total_bounds  # [minx, miny, maxx, maxy]
-
-    # Cálculo dos comprimentos dos eixos
-    length_ns = bounds[3] - bounds[1]  # Diferença de coordenadas Y (norte-sul)
-    length_ew = bounds[2] - bounds[0]  # Diferença de coordenadas X (leste-oeste)
-
-    # Retornar as coordenadas dos eixos e seus comprimentos
-    axes_info = {
-        #'Eixo norte-sul\n ': {'min_y': bounds[1], 'max_y': bounds[3],
-        'comprimento em y': f'{length_ns}',
-        #'Eixo leste-oeste\n': {'min_x': bounds[0], 'max_x': bounds[2],
-        'comprimento em x': f'{length_ew}'
-    }
-
-    return axes_info
-
-def plot_shapefile_with_shp_axes(file, axe):
+def plot_area_with_axes(file, axe, crs):
     # Carregar os shapefiles
     try:
         gdf = gpd.read_file(file)
@@ -264,20 +211,20 @@ def plot_shapefile_with_shp_axes(file, axe):
         return
 
     # Garantir que ambos os shapefiles estejam em CRS UTM
-    gdf = ensure_utm_crs(gdf)
-    gdf_axe = ensure_utm_crs(gdf_axe)
+    gdf = gdf.to_crs(crs)
+    gdf_axe = gdf_axe.to_crs(crs)
 
     # Criar figura e eixos
     fig, ax = plt.subplots(figsize=(10, 10))
 
     # Plotar o shapefile principal (polígono)
-    gdf.plot(ax=ax, color='lightblue', edgecolor='black', label='Polígono (Reservatório)')
+    gdf.plot(ax=ax, color='lightblue', edgecolor='black', label='Área do levantamento')
 
     # Plotar o arquivo de eixos (linha)
-    gdf_axe.plot(ax=ax, color='red', linewidth=2, label='Eixos do arquivo .kml')
+    gdf_axe.plot(ax=ax, color='red', linewidth=2, label='Eixo principal')
 
     # Plotar contorno do polígono
-    gdf.boundary.plot(ax=ax, color='purple', linewidth=1, label='Contorno do reservatório')
+    gdf.boundary.plot(ax=ax, color='purple', linewidth=1, label='Contorno da área')
 
     # Definir título e rótulos dos eixos
     plt.title('Visualização do Arquivo com o Eixo')
@@ -297,60 +244,22 @@ def plot_shapefile_with_shp_axes(file, axe):
     st.pyplot(fig)
 
 
-def plot_shapefile_with_axes(file):
-    """Plota o shapefile com os eixos norte-sul e leste-oeste passando pelo centróide."""
-    # Carregar o shapefile
-    gdf = gpd.read_file(file)
-
-    # Garantir que o CRS esteja em UTM para medidas precisas
-    gdf = ensure_utm_crs(gdf)
-
-    # Obter os limites do shapefile
-    bounds = gdf.total_bounds  # [minx, miny, maxx, maxy]
-
-    # Calcular os comprimentos dos eixos
-    length_ns, length_ew = bounds[3] - bounds[1], bounds[2] - bounds[0]
-
-    # Calcular o centróide do shapefile
-    centroid = gdf.geometry.centroid.unary_union
-
-    # Coordenadas dos eixos baseadas no centróide
-    mid_x, mid_y = centroid.x, centroid.y
-
-    # Criar o gráfico
-    fig, ax = plt.subplots(figsize=(10, 10))
-    gdf.plot(ax=ax, color='lightblue', edgecolor='black')
-
-    # Plotar o eixo norte-sul (linha vertical)
-    ns_line = mlines.Line2D([mid_x, mid_x], [bounds[1], bounds[3]], color='red', linestyle='--', label='Eixo Norte-Sul')
-    ax.add_line(ns_line)
-
-    # Plotar o eixo leste-oeste (linha horizontal)
-    ew_line = mlines.Line2D([bounds[0], bounds[2]], [mid_y, mid_y], color='blue', linestyle='--',
-                            label='Eixo Leste-Oeste')
-    ax.add_line(ew_line)
-
-    # Ajustar a visualização
-    plt.title('Visualização do Arquivo com Eixos pelo Centróide')
-    plt.xlabel('UTM (Eixo X)')
-    plt.ylabel('UTM (Eixo Y)')
-    plt.legend()
-    plt.grid(False)
-    st.pyplot(fig)
-
-#######
-
 ################ funcao para plotar tudo 
-def plot_shapefile_with_grids_shp(file, reg_line_spacing, cross_line_spacing, axe):
+def plot_area_with_grids(file, reg_line_spacing, cross_line_spacing, axe, crs):
     """Função para gerar e plotar linhas de grid dentro do polígono de um reservatório."""
     gdf = gpd.read_file(file)
+    gdf = gdf.to_crs(crs)
     axe_gdf = gpd.read_file(axe)
-    # Verificar se todas as geometrias em gdf_axe são do tipo LineString
-    if not all(axe_gdf.geometry.geom_type == 'LineString'):
-        raise ValueError(f'O gdf_axe deve conter apenas geometrias do tipo LineString.')
+    axe_gdf = axe_gdf.to_crs(crs)
+    
+    '''if not all(gdf.geometry.type == 'Polygon'):
+        st.error("O arquivo principal deve conter geometrias do tipo polígono.")
+        return
 
-    axe_gdf = ensure_utm_crs(axe_gdf)
-    gdf = ensure_utm_crs(gdf)
+    # Verificar se o arquivo de eixos é uma linha
+    if not all(axe_gdf.geometry.type == 'LineString'):
+        st.error("O arquivo de eixos deve conter geometrias do tipo linha.")
+        return'''
 
     # Criar a linha de contorno com um buffer de 5 metros para dentro
     gdf_contour = gdf.copy()
@@ -383,33 +292,37 @@ def plot_shapefile_with_grids_shp(file, reg_line_spacing, cross_line_spacing, ax
                     continue  # Se houver erro, continuar com o próximo valor de offset
 
     # **Gerar as linhas regulares (perpendiculares ao eixo) ao longo de toda a extensão**
-    for line in axe_gdf.geometry:
-        line_coords = list(line.coords)
-        for i in range(len(line_coords) - 1):
-            try:
-                x1, y1 = line_coords[i][:2]
-                x2, y2 = line_coords[i + 1][:2]
 
-                # Calcular o vetor unitário perpendicular
-                dx = x2 - x1
-                dy = y2 - y1
-                length = (dx**2 + dy**2)**0.5
-                perp_dx = -dy / length
-                perp_dy = dx / length
+    for line in gdf.geometry:
+        # Gerar pontos e segmentos
+        num_points = int(line.length // reg_line_spacing) + 1
+        points = [line.interpolate(i * reg_line_spacing) for i in range(num_points)]
 
-                # Gerar as linhas perpendiculares ao longo da extensão da área
-                current_offset = bounds[1]  # Iniciar no limite mínimo da área
-                while current_offset <= bounds[3]:  # Até o limite máximo da área
-                    perp_line = LineString([
-                        (x1 + perp_dx * 10000, y1 + perp_dy * 10000),  # Multiplicar por um valor grande para cobrir a área
-                        (x1 - perp_dx * 10000, y1 - perp_dy * 10000)
-                    ])
-                    grid_lines_perpendicular.append(perp_line)
-                    current_offset += reg_line_spacing  # Adicionar o espaçamento regular
+        for i in range(len(points) - 1):
+            segment = LineString([points[i], points[i + 1]])
+            mid = segment.interpolate(0.5, normalized=True)  # Ponto médio
 
-            except Exception as e:
-                print(f"Erro ao gerar linha perpendicular entre os pontos {line_coords[i]} e {line_coords[i+1]}: {e}")
-                continue
+            # Rotacionar 90° em torno do ponto médio
+            coords = [(p.x - mid.x, p.y - mid.y) for p in segment.coords]
+            rotated_coords = [(y, -x) for x, y in coords]  # Rotação de 90° (troca x ↔ y e inverte um eixo)
+            rotated_segment = LineString([(x + mid.x, y + mid.y) for x, y in rotated_coords])
+
+            # Estender a linha
+            x1, y1 = rotated_segment.coords[-2]
+            x2, y2 = rotated_segment.coords[-1]
+            dx, dy = x2 - x1, y2 - y1  # Vetor direção do segmento
+            length = np.sqrt(dx**2 + dy**2)
+            unit_dx, unit_dy = dx / length, dy / length  # Normalizar o vetor direção
+
+            # Calcular o ponto de extensão
+            new_x = x2 + unit_dx * 1000
+            new_y = y2 + unit_dy * 1000
+
+            # Criar a linha estendida
+            extended_segment = LineString([*rotated_segment.coords, (new_x, new_y)])
+
+            grid_lines_perpendicular.append(extended_segment)
+            
 
     # **Verificação e plotagem**
     if not grid_lines_perpendicular:
@@ -453,8 +366,7 @@ def create_zip_from_directory(directory_path, zip_name):
     zip_path = shutil.make_archive(zip_name, 'zip', directory_path)
     return zip_path
 
-
-def download_shapefile_as_zip(temp_dir, file_paths):
+def download_files_as_zip(temp_dir, file_paths):
     """Disponibiliza o shapefile processado como um arquivo ZIP para download."""
     zip_name = "shapefiles"
     zip_path = create_zip_from_directory(temp_dir, zip_name)
