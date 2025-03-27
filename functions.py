@@ -28,6 +28,7 @@ def calculate_ping_rate(sonar_range, sound_speed, frequency):
     frequency_hz = frequency * 1000
     ping_rate = ((2*sonar_range) / sound_speed) + 2 * (10/frequency_hz)
     ping_rate_hz = 1 / ping_rate
+    st.info(f'O ping rate calculado trata-se de um valor teórico máximo aproximado, sujeito a variações devido a fatores externos e diferenças entre equipamentos. O valor utilizado em campo pode variar')
     return ping_rate_hz
 
 def calculate_sonar_footprint(beam_width, sonar_range):
@@ -42,16 +43,18 @@ def calculate_velocity(sonar_footprint, ping_rate_hz):
     return velocity_m_s, velocity_knots
 
 def calculate_overlap(footprint, sonar_range, nav_speed, ping_rate):
-    overlap_percentage  = (footprint * ping_rate) / (nav_speed * 2)/100
-    return overlap_percentage
-def calculate_survey_time(reg_line_spacing, cross_line_spacing, total_reg_lines, total_cross_lines,min_length,
-                          max_length, nav_speed, contour_length, time_between_lines):
+     return (footprint * ping_rate) / (nav_speed * 2)/100
+   
+def calculate_survey_time( nav_speed, time_between_lines, total_reg_lines, total_cross_lines,min_length,
+                          max_length, contour_length):
     """Calcula o tempo estimado para o levantamento das linhas."""
 
     nav_speed_ms = nav_speed / 1.944
-    survey_time_minutes = ((total_reg_lines * min_length + total_cross_lines * max_length + contour_length) / nav_speed_ms) / 60
+    line_time = ((((min_length * total_reg_lines)+(max_length * total_cross_lines)) / nav_speed_ms))/60
+    contour_time = (contour_length / nav_speed_ms)/60
+    translate_time = (time_between_lines * (total_cross_lines + total_reg_lines))
+    survey_time_minutes = line_time + contour_time + translate_time
     survey_time_rounded = round(survey_time_minutes)
-    total_transladed_time = round((total_cross_lines+total_reg_lines) * time_between_lines)
 
     if survey_time_rounded >= 60:
         survey_time_rounded = round(survey_time_rounded / 60)
@@ -60,36 +63,32 @@ def calculate_survey_time(reg_line_spacing, cross_line_spacing, total_reg_lines,
     else:
         unit = 'minutos'
 
-    total_time = round(survey_time_rounded + total_transladed_time)
 
-    return total_time, unit
+    return survey_time_rounded , unit
 
-def line_spacing(area, max_length, min_length, selected_option, average_depth, reg_line_spacing, cross_line_spacing,
+def line_spacing(area, area_ha,  max_length, min_length, selected_option, average_depth, reg_line_spacing, cross_line_spacing,
                   scale, generate_cross_lines):
-    km = max_length / 1000
-    hectares = area / 10000
-
+    eixo_km = max_length / 1000
+    cross_line_spacing = int(cross_line_spacing)
     if selected_option == 'Normam':
 
         reg_line_spacing = max(3 * average_depth, 25)
         if generate_cross_lines:
-            cross_line_spacing = 10 * reg_line_spacing
-        else: cross_line_spacing = 0
-        
+            cross_line_spacing = cross_line_spacing * reg_line_spacing
     elif selected_option == 'ANA-UHE':
 
-        rls_km = (0.35 * (hectares ** 0.35)) / km
+        rls_km = ((0.35 * (float(area_ha) ** 0.35)) / float(eixo_km))
         reg_line_spacing = rls_km * 1000
         if generate_cross_lines: 
-            cross_line_spacing = 3 * reg_line_spacing
+            cross_line_spacing = cross_line_spacing * reg_line_spacing
         else: cross_line_spacing = 0
 
     elif selected_option == 'ANA-PCH':
 
-        rls_km = (0.1 * (hectares ** 0.25)) / km
+        rls_km = ((0.1 * (float(area_ha) ** 0.25)) / float(eixo_km))
         reg_line_spacing = rls_km * 1000
         if generate_cross_lines:
-            cross_line_spacing = 3 * reg_line_spacing
+            cross_line_spacing = cross_line_spacing * reg_line_spacing
         else: cross_line_spacing = 0
 
     elif selected_option == 'Personalizado':
@@ -101,9 +100,6 @@ def line_spacing(area, max_length, min_length, selected_option, average_depth, r
 
         reg_line_spacing = reg_line_spacing
         cross_line_spacing = cross_line_spacing
-
-    if cross_line_spacing >= min_length/2:
-        cross_line_spacing = min_length / 3
 
     total_reg_lines = round(max_length / reg_line_spacing)
     if generate_cross_lines:
@@ -243,123 +239,62 @@ def plot_area_with_axes(file, axe, crs):
     # Exibir o gráfico no Streamlit
     st.pyplot(fig)
 
-
 ################ funcao para plotar tudo 
 def plot_area_with_grids(file, reg_line_spacing, cross_line_spacing, axe, crs):
-    """Função para gerar e plotar linhas de grid dentro do polígono de um reservatório."""
-    gdf = gpd.read_file(file)
-    gdf = gdf.to_crs(crs)
-    axe_gdf = gpd.read_file(axe)
-    axe_gdf = axe_gdf.to_crs(crs)
-    
-    '''if not all(gdf.geometry.type == 'Polygon'):
+    try:
+        gdf = gpd.read_file(file)
+        gdf_axe = gpd.read_file(axe)
+    except Exception as e:
+        st.error(f"Erro ao carregar os arquivos shapefile: {e}")
+        return
+
+    # Verificar se o shapefile principal é um polígono
+    if not all(gdf.geometry.type == 'Polygon'):
         st.error("O arquivo principal deve conter geometrias do tipo polígono.")
         return
 
     # Verificar se o arquivo de eixos é uma linha
-    if not all(axe_gdf.geometry.type == 'LineString'):
+    if not all(gdf_axe.geometry.type == 'LineString'):
         st.error("O arquivo de eixos deve conter geometrias do tipo linha.")
-        return'''
+        return
 
-    # Criar a linha de contorno com um buffer de 5 metros para dentro
-    gdf_contour = gdf.copy()
-    gdf_contour['geometry'] = gdf_contour.buffer(-5).buffer(0)  # Corrigir possíveis geometrias inválidas
+    # Garantir que ambos os shapefiles estejam em CRS UTM
+    gdf = gdf.to_crs(crs)
+    gdf_axe = gdf_axe.to_crs(crs)
+    gdf_buffer = gdf.copy()
+    gdf_buffer['geometry'] = gdf_buffer.buffer(-5)
 
-    # Obter os limites do shapefile (bounding box)
-    bounds = gdf_contour.total_bounds  # [minx, miny, maxx, maxy]
+    # Criar figura e eixos
+    fig, ax = plt.subplots(figsize=(10, 10))
 
-    # Criar listas para armazenar as linhas
-    grid_lines_parallel = []  # Linhas paralelas (verificação)
-    grid_lines_perpendicular = []  # Linhas perpendiculares (regulares)
+    # Plotar o shapefile principal (polígono)
+    gdf.plot(ax=ax, color='lightblue', edgecolor='black', label='Área do levantamento')
 
-    # **Gerar as linhas de verificação (paralelas ao eixo)**
-    if axe_gdf is not None and not axe_gdf.empty:
-        for line in axe_gdf.geometry:
-            current_offset = 0
-            while current_offset <= bounds[2] - bounds[0]:
-                try:
-                    # Gerar linha paralela à esquerda
-                    offset_line_left = line.parallel_offset(current_offset, side='left')  # Linha paralela ao eixo, lado esquerdo
-                    grid_lines_parallel.append(offset_line_left)
+    # Plotar o arquivo de eixos (linha)
+    gdf_axe.plot(ax=ax, color='red', linewidth=2, label='Eixo principal')
 
-                    # Gerar linha paralela à direita
-                    offset_line_right = line.parallel_offset(current_offset, side='right')  # Linha paralela ao eixo, lado direito
-                    grid_lines_parallel.append(offset_line_right)
-                    
-                    current_offset += cross_line_spacing
-                except Exception as e:
-                    print(f"Erro ao gerar linha paralela com offset {current_offset}: {e}")
-                    continue  # Se houver erro, continuar com o próximo valor de offset
+    # Plotar contorno do polígono
+    gdf.boundary.plot(ax=ax, color='purple', linewidth=1, label='Contorno da área')
+    
+    gdf_buffer.boundary.plot(ax=ax, color='black', linewidth=1, label='Buffer de 5m')
 
-    # **Gerar as linhas regulares (perpendiculares ao eixo) ao longo de toda a extensão**
+    # Definir título e rótulos dos eixos
+    plt.title('Visualização do Arquivo com o Eixo')
+    plt.xlabel('Coordenada UTM (Eixo X)')
+    plt.ylabel('Coordenada UTM (Eixo Y)')
+    
+    # Manter proporção correta no gráfico
+    ax.set_aspect('equal')
 
-    for line in gdf.geometry:
-        # Gerar pontos e segmentos
-        num_points = int(line.length // reg_line_spacing) + 1
-        points = [line.interpolate(i * reg_line_spacing) for i in range(num_points)]
+    # Mostrar legenda
+    plt.legend()
 
-        for i in range(len(points) - 1):
-            segment = LineString([points[i], points[i + 1]])
-            mid = segment.interpolate(0.5, normalized=True)  # Ponto médio
+    # Remover grid
+    plt.grid(False)
 
-            # Rotacionar 90° em torno do ponto médio
-            coords = [(p.x - mid.x, p.y - mid.y) for p in segment.coords]
-            rotated_coords = [(y, -x) for x, y in coords]  # Rotação de 90° (troca x ↔ y e inverte um eixo)
-            rotated_segment = LineString([(x + mid.x, y + mid.y) for x, y in rotated_coords])
+    # Exibir o gráfico no Streamlit
+    st.pyplot(fig)
 
-            # Estender a linha
-            x1, y1 = rotated_segment.coords[-2]
-            x2, y2 = rotated_segment.coords[-1]
-            dx, dy = x2 - x1, y2 - y1  # Vetor direção do segmento
-            length = np.sqrt(dx**2 + dy**2)
-            unit_dx, unit_dy = dx / length, dy / length  # Normalizar o vetor direção
-
-            # Calcular o ponto de extensão
-            new_x = x2 + unit_dx * 1000
-            new_y = y2 + unit_dy * 1000
-
-            # Criar a linha estendida
-            extended_segment = LineString([*rotated_segment.coords, (new_x, new_y)])
-
-            grid_lines_perpendicular.append(extended_segment)
-            
-
-    # **Verificação e plotagem**
-    if not grid_lines_perpendicular:
-        print("Nenhuma linha perpendicular (regular) foi gerada.")
-    else:
-        print(f"{len(grid_lines_perpendicular)} linhas perpendiculares (regulares) foram geradas com sucesso!")
-
-    # Criar GeoDataFrames para as linhas de grid
-    gdf_grid_lines_parallel = gpd.GeoDataFrame(geometry=grid_lines_parallel, crs=gdf.crs)
-    gdf_grid_lines_perpendicular = gpd.GeoDataFrame(geometry=grid_lines_perpendicular, crs=gdf.crs)
-
-    # Realizar a interseção para garantir que as linhas fiquem dentro do contorno
-    gdf_grid_lines_parallel = gpd.overlay(gdf_grid_lines_parallel, gdf_contour, how='intersection')
-    gdf_grid_lines_perpendicular = gpd.overlay(gdf_grid_lines_perpendicular, gdf_contour, how='intersection')
-
-    # Salvar os shapefiles modificados em um diretório temporário
-    temp_dir = tempfile.mkdtemp()
-    try:
-        # Shapefile das linhas paralelas
-        parallel_shapefile_path = os.path.join(temp_dir, "shapefile_linhas_paralelas.shp")
-        gdf_grid_lines_parallel.to_file(parallel_shapefile_path)
-
-        # Shapefile das linhas perpendiculares
-        perpendicular_shapefile_path = os.path.join(temp_dir, "shapefile_linhas_perpendiculares.shp")
-        gdf_grid_lines_perpendicular.to_file(perpendicular_shapefile_path)
-
-        # Exibir o gráfico
-        fig, ax = plt.subplots(figsize=(10, 10))
-        gdf.plot(ax=ax, color='lightblue', edgecolor='black')  # Polígono do reservatório
-        gdf_grid_lines_parallel.plot(ax=ax, color='red', linestyle='-', label='Linhas Paralelas')  # Linhas paralelas
-        gdf_grid_lines_perpendicular.plot(ax=ax, color='green', linestyle='--', label='Linhas Perpendiculares')  # Linhas perpendiculares
-        ax.set_title("Linhas de Grid Geradas")
-        ax.legend()
-        plt.show()
-
-    except Exception as e:
-        print(f"Erro ao salvar ou exibir as linhas: {e}")
 
 def create_zip_from_directory(directory_path, zip_name):
     """Cria um arquivo zip a partir de um diretório."""
