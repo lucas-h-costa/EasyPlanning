@@ -1,3 +1,4 @@
+# functions_tk.py
 import numpy as np
 import matplotlib.pyplot as plt
 import geopandas as gpd
@@ -92,7 +93,6 @@ def calcular_estimativa_tempo(l_tot_m, v_nos, t_g_min, n_s):
 def gerar_linhas(gdf_area, gdf_eixo, delta_ls, delta_lv, aplicar_buffer=False, valor_buffer=0.0):
     area_geom = gdf_area.geometry.unary_union
     
-    # Aplicação de buffer interno (recuo)
     if aplicar_buffer and valor_buffer > 0:
         area_recorte = area_geom.buffer(-valor_buffer)
         if area_recorte.is_empty:
@@ -160,35 +160,61 @@ def gerar_linhas(gdf_area, gdf_eixo, delta_ls, delta_lv, aplicar_buffer=False, v
 
 def gerar_grafico(gdf_area, gdf_eixo, gdf_ls, gdf_lv, aplicar_buffer=False, valor_buffer=0.0):
     fig, ax = plt.subplots(figsize=(6, 5))
+    fig.patch.set_facecolor('#ffffff')
+    ax.set_facecolor('#ffffff')
     
-    fig.suptitle("Planta de Linhas Projetadas", fontsize=12, fontweight='bold')
+    fig.suptitle("Planta de visualização", fontsize=12, fontweight='bold', color='black')
     
     if gdf_area is not None:
         if gdf_area.crs:
-            ax.set_title(f"Projeção: {gdf_area.crs.name}", fontsize=9, color='#5c7186', pad=10)
+            ax.set_title(f"Projeção: {gdf_area.crs.name}", fontsize=9, color='black', pad=10)
         gdf_area.plot(ax=ax, color='#e0f2fe', edgecolor='#0ea5e9', alpha=0.6, label='Área de Estudo')
         if aplicar_buffer and valor_buffer > 0:
             area_buf = gdf_area.geometry.unary_union.buffer(-valor_buffer)
             if not area_buf.is_empty:
-                gpd.GeoSeries([area_buf]).boundary.plot(ax=ax, color='#0284c7', linewidth=1.2, linestyle=':', label=f'Recuo ({valor_buffer}m)')
+                gpd.GeoSeries([area_buf]).boundary.plot(ax=ax, color='#22c55e', linewidth=1.2, linestyle=':', label=f'Recuo ({valor_buffer}m)')
         
     if gdf_eixo is not None:
         gdf_eixo.plot(ax=ax, color='black', linewidth=1.5, linestyle='--', label='Eixo Principal')
     if gdf_ls is not None and not gdf_ls.empty:
         gdf_ls.plot(ax=ax, color='#ef4444', linewidth=1, label='Linhas de Sondagem')
     if gdf_lv is not None and not gdf_lv.empty:
-        gdf_lv.plot(ax=ax, color='#22c55e', linewidth=1.5, label='Linhas de Verificação')
+        gdf_lv.plot(ax=ax, color='#facc15', linewidth=1.5, label='Linhas de Verificação')
     
     ax.set_aspect('equal', adjustable='datalim')
     ax.set_xticks([])
     ax.set_yticks([])
     
+    for spine in ax.spines.values():
+        spine.set_edgecolor('#d7d7d7')
+    
     manuseios, rotulos = ax.get_legend_handles_labels()
     if manuseios:
-        ax.legend(manuseios, rotulos, loc='upper center', bbox_to_anchor=(0.5, -0.02), ncol=2, fontsize='small', frameon=False)
+        ax.legend(manuseios, rotulos, loc='upper center', bbox_to_anchor=(0.5, -0.02), ncol=2, fontsize='small', frameon=False, labelcolor='black')
         
     plt.tight_layout()
     return fig
+
+def exportar_geometria_csv(gdf, caminho_arquivo, prefixo):
+    try:
+        with open(caminho_arquivo, 'w', encoding='utf-8') as f:
+            f.write("nome da linha,E inicio,N inicio,E fim,N fim\n")
+            for i, row in enumerate(gdf.itertuples()):
+                if row.geometry.geom_type == 'LineString':
+                    coords = list(row.geometry.coords)
+                    if len(coords) >= 2:
+                        x_ini, y_ini = coords[0][:2]
+                        x_fim, y_fim = coords[-1][:2]
+                        f.write(f"{prefixo}{i+1},{x_ini:.3f},{y_ini:.3f},{x_fim:.3f},{y_fim:.3f}\n")
+                elif row.geometry.geom_type == 'MultiLineString':
+                    for j, line in enumerate(row.geometry.geoms):
+                        coords = list(line.coords)
+                        if len(coords) >= 2:
+                            x_ini, y_ini = coords[0][:2]
+                            x_fim, y_fim = coords[-1][:2]
+                            f.write(f"{prefixo}{i+1}_{j+1},{x_ini:.3f},{y_ini:.3f},{x_fim:.3f},{y_fim:.3f}\n")
+    except Exception as e:
+        print(f"Erro ao exportar CSV: {e}")
 
 def gerar_relatorio_pdf(resultados, fig, titulo="Relatório Técnico de Planejamento"):
     buffer = BytesIO()
@@ -216,12 +242,8 @@ def gerar_relatorio_pdf(resultados, fig, titulo="Relatório Técnico de Planejam
         fontSize=11, textColor=colors.HexColor("#0b5aa2"), spaceBefore=14, spaceAfter=6
     )
 
-    tabela_cabecalho_conteudo = [
-        [Paragraph("Relatório Técnico de Planejamento Hidrográfico", estilo_titulo_cabecalho)],
-        [Paragraph("EasyPlanning, GPHIDRO, UFV", estilo_sub_cabecalho)],
-        [Paragraph(f"Gerado automaticamente em: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", estilo_sub_cabecalho)]
-    ]
-    tabela_cabecalho = Table(tabela_cabecalho_conteudo, colWidths=[7.5*inch])
+    texto_cabecalho = "Relatório Técnico de Planejamento Hidrográfico<br/><font size=10>EasyPlanning, GPHIDRO, UFV</font><br/><br/><font size=9.5>Gerado automaticamente em: {}</font>".format(datetime.now().strftime('%d/%m/%Y %H:%M:%S'))
+    tabela_cabecalho = Table([[Paragraph(texto_cabecalho, estilo_titulo_cabecalho)]], colWidths=[7.5*inch])
     tabela_cabecalho.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#0b5aa2")),
         ('PADDING', (0, 0), (-1, -1), 8),
@@ -229,7 +251,6 @@ def gerar_relatorio_pdf(resultados, fig, titulo="Relatório Técnico de Planejam
     ]))
     elementos.append(tabela_cabecalho)
     
-    # 1. Dados Espaciais
     elementos.append(Paragraph("1. Dados Espaciais", estilo_secao))
     dados_espaciais = [
         ["Sistema de Referência (CRS)", resultados.get("CRS", "Desconhecido")],
@@ -249,7 +270,6 @@ def gerar_relatorio_pdf(resultados, fig, titulo="Relatório Técnico de Planejam
     ]))
     elementos.append(tabela_espaciais)
     
-    # 2. Critérios e Parâmetros Operacionais
     elementos.append(Paragraph("2. Critérios e Parâmetros Operacionais", estilo_secao))
     dados_operacionais = [
         ["Método de Cálculo", resultados.get("Método de Cálculo Aplicado", "-")],
@@ -261,7 +281,6 @@ def gerar_relatorio_pdf(resultados, fig, titulo="Relatório Técnico de Planejam
         ["Tempo Operacional Estimado", resultados.get("Tempo Operacional Estimado", "-")]
     ]
     
-    # Inserção condicional de parâmetros de sensores caso existam
     if "Profundidade Média (h)" in resultados:
         dados_operacionais.insert(2, ["Profundidade Média (h)", resultados["Profundidade Média (h)"]])
     if "Abertura Angular (θ)" in resultados:
@@ -289,35 +308,13 @@ def gerar_relatorio_pdf(resultados, fig, titulo="Relatório Técnico de Planejam
     ]))
     elementos.append(tabela_operacionais)
     
-    # 3. Representação Espacial
     elementos.append(Paragraph("3. Representação Espacial", estilo_secao))
     if fig is not None:
         buffer_img = BytesIO()
-        fig.savefig(buffer_img, format='png', dpi=200, bbox_inches='tight')
+        fig.savefig(buffer_img, format='png', dpi=200, bbox_inches='tight', facecolor='white')
         buffer_img.seek(0)
         img_pdf = Image(buffer_img, width=6.0*inch, height=4.2*inch, kind='proportional')
         elementos.append(img_pdf)
         
     doc.build(elementos)
     return buffer.getvalue()
-
-def exportar_geometria_csv(gdf, caminho_arquivo, prefixo):
-    try:
-        with open(caminho_arquivo, 'w', encoding='utf-8') as f:
-            f.write("nome da linha,E inicio,N inicio,E fim,N fim\n")
-            for i, row in enumerate(gdf.itertuples()):
-                if row.geometry.geom_type == 'LineString':
-                    coords = list(row.geometry.coords)
-                    if len(coords) >= 2:
-                        x_ini, y_ini = coords[0][:2]
-                        x_fim, y_fim = coords[-1][:2]
-                        f.write(f"{prefixo}{i+1},{x_ini:.3f},{y_ini:.3f},{x_fim:.3f},{y_fim:.3f}\n")
-                elif row.geometry.geom_type == 'MultiLineString':
-                    for j, line in enumerate(row.geometry.geoms):
-                        coords = list(line.coords)
-                        if len(coords) >= 2:
-                            x_ini, y_ini = coords[0][:2]
-                            x_fim, y_fim = coords[-1][:2]
-                            f.write(f"{prefixo}{i+1}_{j+1},{x_ini:.3f},{y_ini:.3f},{x_fim:.3f},{y_fim:.3f}\n")
-    except Exception as e:
-        print(f"Erro ao exportar CSV: {e}")

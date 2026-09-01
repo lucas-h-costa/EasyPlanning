@@ -14,15 +14,30 @@ O **EasyPlanning** é uma aplicação desktop desenvolvida em Python para automa
 - [Guia de Utilização](#-guia-de-utilização)
 - [Produtos Gerados e Exportação](#-produtos-gerados-e-exportação)
 - [Estrutura de Arquivos](#-estrutura-de-arquivos)
+- [Tratamento de Erros e Validação](#-tratamento-de-erros-e-validação)
+- [Personalização e Temas](#-personalização-e-temas)
+- [Notas Técnicas](#-notas-técnicas)
 - [Créditos](#-créditos)
 
 ---
 
 ## 🎯 Visão Geral e Objetivos
 
+O EasyPlanning foi desenvolvido com um conjunto abrangente de funcionalidades para resolver os principais desafios do planejamento hidrográfico pré-campo:
+
+- Interface gráfica moderna em Tkinter com tema escuro customizado e painel de métricas em tempo real.
+- Suporte a múltiplos métodos de espaçamento: ANA (UHE e PCH), NORMAM (Monofeixe e Multifeixe), escala cartográfica, manual, e sonar de varredura lateral (SSS).
+- Geração automática de linhas de sondagem ortogonais e linhas de verificação paralelas com buffer interno opcional.
+- Visualização geoespacial em Matplotlib com sobreposição de borda, eixo, LS e LV em tempo real.
+- Exportação de pacote técnico completo: PDF formatado, GeoJSON vetorial e CSV estruturado.
+- Interface dinâmica que habilita/desabilita campos conforme o método selecionado, reduzindo erros de preenchimento.
+- Cálculo de esforço operacional com estimativa realista de tempo por navegação e manobra.
+- Vetorização interativa: desenhe a borda e eixo diretamente sobre mapa de satélite.
+
 O planejamento prévio de uma campanha hidrográfica é uma das etapas mais críticas para assegurar a qualidade dos dados, a segurança da navegação da embarcação e a viabilidade econômica do levantamento. 
 
 O **EasyPlanning** resolve as principais dores do planejamento manual:
+
 1. **Eliminação de cálculos manuais repetitivos** para dimensionamento do espaçamento de linhas.
 2. **Geração geométrica precisa** de linhas de sondagem transversais ortogonais ao talvegue/eixo e linhas de verificação longitudinais paralelas.
 3. **Estimativa realista do tempo de levantamento**, considerando a velocidade da embarcação e o tempo despendido em manobras de giro entre linhas.
@@ -36,21 +51,43 @@ O **EasyPlanning** resolve as principais dores do planejamento manual:
 - 📁 **Ingestão Multi-formato de Dados Espaciais**:
   - Aceita a delimitação da área (**Borda**) e o traçado central (**Eixo de Navegação/Talvegue**).
   - Suporta pacotes Shapefile em arquivo compactado (`.zip` contendo `.shp`, `.shx`, `.dbf`, `.prj`), arquivos do Google Earth (`.kml`) e `.geojson`.
-  - **Reprojeção Automática:** Detecta e converte automaticamente coordenadas geográficas para o fuso UTM local mais adequado (`estimate_utm_crs()`).
+  - **Reprojeção Automática:** Detecta e converte automaticamente coordenadas geográficas para o fuso UTM local mais adequado.
+
+- 🗺️ **Vetorização Interativa**:
+  - Aba dedicada com mapa de satélite interativo (Google Maps).
+  - Desenhe a borda do polígono clicando pontos no mapa (mínimo 3 pontos).
+  - Desenhe o eixo principal como uma polyline (mínimo 2 pontos).
+  - Botão de limpeza para reiniciar o desenho sem perder os cálculos anteriores.
+  - Exportação direta de vetores desenhados em KML ou GeoJSON.
+
 - 🛡️ **Margem de Segurança e Buffer Interno**:
   - Opção para aplicar recuo paramétrico da borda em metros, impedindo que a embarcação projete linhas até encostas rasas ou margens perigosas.
+  - Visualização do buffer aplicado no mapa em tempo real.
+
 - 📐 **Motor Geométrico de Traçado de Linhas**:
   - **Linhas de Sondagem (LS):** Calculadas a distâncias regulares e projetadas ortogonalmente ao vetor tangente de cada trecho do eixo, interceptadas com o polígono de borda.
   - **Linhas de Verificação (LV):** Geradas paralelamente ao eixo através de curvas de deslocamento (*parallel offsets*), respeitando a curvatura natural do corpo d'água.
+
 - ⏱️ **Cálculo de Esforço Operacional**:
-  - Estimativa do tempo total de varredura (horas) considerando velocidade média (nós), tempo de manobra de cabeceira ($t_g$) e extensão acumulada de linha.
+  - Estimativa do tempo total de varredura (horas) considerando velocidade média (nós), tempo de manobra de cabeceira e extensão acumulada de linha.
+
 - 📊 **Interface Gráfica e Dashboard Integrado**:
-  - Construída com Tkinter, interface responsiva e formulário inteligente (habilita/desabilita parâmetros de acordo com o método escolhido).
-  - Visualização cartográfica em tempo real via Matplotlib com proporção correta (`aspect='equal'`), cores temáticas e legenda.
-  - Cartões de resumo com métricas imediatas ($\Delta LS$, $\Delta LV$, quantidade de segmentos e tempo total).
+  - Construída com CustomTkinter com tema dark moderno e responsivo.
+  - Três colunas principais: Métricas Espaciais, Configuração de Método e Visualização.
+  - Formulário inteligente que habilita/desabilita parâmetros de acordo com o método escolhido.
+  - Visualização cartográfica em tempo real via Matplotlib com proporção correta, cores temáticas e legenda.
+  - Cartões de resumo com métricas imediatas (ΔLS, ΔLV, quantidade de segmentos e tempo total).
+  - Menu de abas para acesso aos cálculos e à vetorização.
+
 - 📄 **Exportação de Pacote Técnico**:
   - **Relatório PDF**: Documento profissional com cabeçalho institucional, tabela de parâmetros espaciais, dados operacionais e mapa vetorial em alta resolução.
   - **GeoJSON**: Camadas vetoriais `Linhas_Sondagem.geojson` e `Linhas_Verificacao.geojson`.
+  - **CSV**: Coordenadas de início/fim de cada linha para importação em softwares de navegação (Hypack, QINSy).
+
+- 💡 **Manual Integrado**:
+  - Acesso a manual completo do usuário diretamente pela interface.
+  - Conteúdo formatado com suporte a títulos, negrito e itálico.
+  - Barra de rolagem para navegação fluida.
 
 ---
 
@@ -101,15 +138,18 @@ $$\text{Tempo (h)} = \frac{L_{total}}{v_{nos} \cdot 1852} + \left(\frac{t_g}{60}
 
 - **Python:** 3.10 ou superior
 - Bibliotecas necessárias:
-  - `geopandas`
-  - `pyogrio`
-  - `shapely`
-  - `pyproj`
-  - `matplotlib`
-  - `pandas` e `numpy`
-  - `reportlab`
-  - `Pillow`
-  - `rarfile`
+  - `customtkinter` – Interface gráfica moderna
+  - `geopandas` – Processamento de dados geoespaciais
+  - `pyogrio` – Suporte a leitura/escrita de formatos geoespaciais
+  - `shapely` – Operações geométricas
+  - `pyproj` – Transformações de coordenadas e reproj automática
+  - `matplotlib` – Visualização de mapas e gráficos
+  - `pandas` e `numpy` – Manipulação de dados
+  - `reportlab` – Geração de relatórios PDF
+  - `Pillow` – Processamento de imagens
+  - `tkintermapview` – Visualização de mapas interativos em Tkinter
+
+Todas as dependências estão listadas em `requirements.txt`.
 
 ---
 
@@ -129,7 +169,7 @@ conda create -n easyplanning python=3.11 -y
 conda activate easyplanning
 
 # Instale as dependências
-conda install -c conda-forge geopandas pyogrio shapely pyproj matplotlib reportlab pillow
+conda install -c conda-forge geopandas pyogrio shapely pyproj matplotlib reportlab pillow customtkinter tkintermapview
 ```
 
 ### Opção 2: Utilizando `pip` e ambiente virtual
@@ -157,29 +197,76 @@ Para iniciar o programa com interface gráfica:
 python app_tk.py
 ```
 
+A aplicação abrirá uma janela com aproximadamente 1300x850 pixels, tema escuro e todos os controles necessários para planejamento.
+
 ---
 
 ## 🖥️ Guia de Utilização
 
+### Fluxo Principal (Aba "Parâmetros e Cálculos")
+
 1. **Carregar Geometrias**:
-   - Clique em **Carregar Borda** e selecione o arquivo com o polígono da área (`.zip` com SHP, `.kml` ou `.geojson`). O sistema calculará a área total e o CRS projetado.
-   - Clique em **Carregar Eixo** e selecione o arquivo com a linha de navegação/talvegue. O sistema calculará a extensão e estimará a largura transversal média.
-2. **Definir Parâmetros Operacionais**:
-   - Ajuste a velocidade da embarcação em nós e o tempo estimado de manobra por cabeceira.
-   - *(Opcional)* Marque **Aplicar Buffer Interno** e defina a distância de recuo das margens em metros.
+   - Clique em **Carregar Borda** (barra superior) e selecione o arquivo com o polígono da área (`.zip` com SHP, `.kml` ou `.geojson`). 
+   - O sistema calculará a área total, detectará o CRS e reprojetará automaticamente para UTM se necessário.
+   - Clique em **Carregar Eixo** e selecione o arquivo com a linha de navegação/talvegue.
+   - O sistema calculará a extensão total do eixo e estimará a largura transversal média da área.
+
+2. **Configurar Parâmetros Operacionais**:
+   - Defina a **Velocidade da embarcação** em nós.
+   - Defina o **Tempo de transição (tg)** em minutos (tempo para manobra de cabeceira).
+   - *(Opcional)* Marque **Aplicar Margem de Recuo** e defina a distância do buffer em metros.
+   - O buffer aplica uma erosão matemática no interior do polígono, limitando as linhas à zona segura.
+
 3. **Configurar o Método de Levantamento**:
-   - No menu seletor, escolha a metodologia desejada (ANA, NORMAM, Escala, Manual ou Side Scan).
-   - O aplicativo ativará exclusivamente as caixas de texto relevantes para a metodologia selecionada (ex: profundidade média, ângulo do feixe, alcance, escala).
+   - No menu suspenso **"Método"**, escolha a metodologia desejada:
+     - `ANA_UHE` – Para usinas hidrelétricas
+     - `ANA_PCH` – Para pequenas centrais hidrelétricas
+     - `NORMAM_Monofeixe` – Para ecobatímetros monofeixe
+     - `NORMAM_Multifeixe` – Para ecobatímetros multifeixe
+     - `Escala` – Baseado em escala cartográfica
+     - `Manual` – Inserção direta de espaçamento
+     - `Side Scan (Cobertura 100%)` – SSS com cobertura padrão
+     - `Side Scan (Cobertura 200%)` – SSS com dupla cobertura
+     - `Side Scan (Cobertura > 200%)` – SSS com cobertura completa
+   - O aplicativo ativa **apenas** as caixas de texto relevantes para a metodologia selecionada.
+   - Exemplo: Ao selecionar "NORMAM_Multifeixe", os campos "Profundidade média h", "Abertura angular θ" e "Cobertura MBES C_MB" ficarão habilitados; os demais permanecerão desabilitados.
+
 4. **Executar e Visualizar**:
    - Clique em **Executar Cálculos e Gerar Linhas**.
-   - O mapa central exibirá a área, a borda recuada, o eixo, as Linhas de Sondagem (vermelho) e as Linhas de Verificação (verde).
-   - O dashboard inferior atualizará os indicadores operacionais.
-5. **Exportar**:
-   - Clique no botão verde **Exportar Pacote (PDF + GeoJSON)**.
-   - Selecione o diretório de destino. O software gerará:
-     - `Relatorio_Planejamento.pdf`
-     - `Linhas_Sondagem.geojson`
-     - `Linhas_Verificacao.geojson`
+   - O mapa central (lado direito) exibirá:
+     - Polígono da borda em cinza translúcido
+     - Linha do eixo em azul
+     - Linhas de Sondagem (LS) em vermelho
+     - Linhas de Verificação (LV) em verde
+   - O painel analítico inferior (dashboard) exibirá:
+     - **Método**: Metodologia aplicada
+     - **Δ LS (m)**: Espaçamento entre linhas de sondagem
+     - **Δ LV (m)**: Espaçamento entre linhas de verificação
+     - **Segmentos**: Quantidade de linhas de sondagem geradas
+     - **Tempo (h)**: Estimativa de tempo operacional em horas
+
+5. **Exportar Pacote**:
+   - Após executar os cálculos, o botão **Exportar Resultados** (lado direito, abaixo do mapa) ficará habilitado.
+   - Clique nele e selecione o diretório de destino.
+   - O software gerará os arquivos listados na seção [Produtos Gerados](#-produtos-gerados-e-exportação).
+
+### Fluxo Secundário (Aba "Vetorizar área")
+
+1. **Desenhar Borda**:
+   - Clique em **Desenhar Borda**.
+   - Clique no mapa para inserir vértices do polígono.
+   - Após 3 ou mais pontos, o polígono será renderizado em tempo real.
+   - Use **Limpar Mapa** para reiniciar.
+
+2. **Desenhar Eixo**:
+   - Clique em **Desenhar Eixo**.
+   - Clique no mapa para inserir pontos da polyline.
+   - Após 2 ou mais pontos, a linha será renderizada.
+
+3. **Exportar Geometrias**:
+   - Clique em **Salvar Borda (KML/JSON)** ou **Salvar Eixo (KML/JSON)**.
+   - Escolha o formato (KML ou GeoJSON).
+   - Os arquivos podem ser importados diretamente via **Carregar Borda/Eixo** na aba de cálculos.
 
 ---
 
@@ -187,9 +274,13 @@ python app_tk.py
 
 | Arquivo Gerado | Formato | Finalidade |
 | :--- | :--- | :--- |
-| `Relatorio_Planejamento.pdf` | Documento PDF | Relatório técnico institucional formatado, pronto para documentação e arquivo de projeto. |
-| `Linhas_Sondagem.geojson` | Vetorial GeoJSON | Eixos das linhas de sondagem com projeção georreferenciada para importação em softwares de navegação e SIG. |
-| `Linhas_Verificacao.geojson` | Vetorial GeoJSON | Eixos das linhas de amarração e verificação para controle de qualidade dos dados. |
+| `Relatorio_Planejamento.pdf` | PDF | Relatório técnico institucional formatado com SRC, tabelas de parâmetros, métricas operacionais e mapa renderizado. Pronto para documentação de projeto e arquivo. |
+| `Linhas_Sondagem.geojson` | GeoJSON | Eixos das linhas de sondagem com projeção georreferenciada para importação em softwares de navegação (Hypack, QINSy) e SIG (QGIS, ArcGIS). |
+| `Linhas_Sondagem.csv` | CSV | Coordenadas de início e fim de cada linha de sondagem em formato tabular (Leste, Norte). Estrutura nativa para importadores de embarcação. |
+| `Linhas_Verificacao.geojson` | GeoJSON | Eixos das linhas de verificação/amarração para controle de qualidade dos dados batimétricos. |
+| `Linhas_Verificacao.csv` | CSV | Coordenadas de início e fim de cada linha de verificação em formato tabular. |
+
+> Todos os produtos são gerados simultaneamente ao clicar em **Exportar Resultados**.
 
 ---
 
@@ -197,21 +288,71 @@ python app_tk.py
 
 ```text
 EasyPlanning/
-├── app_tk.py           # Aplicação principal com interface gráfica Tkinter e orquestração
-├── functions_tk.py     # Módulo de cálculos matemáticos, geoprocessamento e geração de PDF
-├── KML_coord.py        # Utilitário para extração de coordenadas e vértices de arquivos KML
-├── requirements.txt    # Relação de dependências do Python
-├── pageIcon.jpg        # Ícone da janela e identidade visual da aplicação
-├── icon.png            # Ícone alternativo em formato PNG
-└── README.md           # Documentação completa do projeto
+├── app_tk.py                # Aplicação principal com interface gráfica Tkinter
+│                            # Orquestração de UI, eventos, e chamadas de cálculo
+├── functions_tk.py          # Módulo de funções
+│                            # Cálculos matemáticos, geoprocessamento e geração de PDF
+├── KML_coord.py             # Utilitário auxiliar para extração de coordenadas de KML
+├── requirements.txt         # Relação de dependências Python (pip)
+├── manual.md                # Manual completo do usuário em Markdown
+├── pageIcon.jpg             # Ícone da aplicação (64x64 pixels, JPG)
+├── icon.png                 # Ícone alternativo em PNG
+├── README.md                # Este arquivo
+└── .gitignore               # Arquivos ignorados pelo Git
 ```
 
 ---
 
-## 👥 Créditos
+## � Tratamento de Erros e Validação
 
-- **Desenvolvedor:** Lucas Costa
-- **Orientação e Pesquisa:** Grupo de Pesquisas em Hidrografia (**GPHIDRO**)
-- **Instituição:** Universidade Federal de Viçosa (**UFV**) - Departamento de Engenharia Civil / Agrimensura e Cartografia
-- **Contexto:** Projeto de Iniciação Científica (IC)
+O EasyPlanning implementa validação robusta em vários pontos:
+
+- **Carregamento de Arquivos**: Detecta formato, CRS e converte automaticamente para UTM.
+- **Reprojeção Automática**: Identifica o fuso UTM apropriado usando `estimate_utm_crs()`.
+- **Validação de Geometrias**: Verifica se borda e eixo estão no mesmo CRS antes de gerar linhas.
+- **Validação de Buffer**: Impede buffer inválido ou maior que a área.
+- **Validação de Entrada**: Campos numéricos são validados antes de cálculos.
+- **Mensagens de Feedback**: Caixas de diálogo informam ao usuário sobre sucesso, avisos e erros.
+
+---
+
+## 🎨 Personalização e Temas
+
+- **Tema Dark**: Tema escuro padrão (tema azul) para reduzir cansaço visual.
+- **Fonte**: Segoe UI (Windows), com fallback para sistema padrão.
+- **Cores Temáticas**:
+  - Azul primário: `#1f538d` (botões, títulos)
+  - Verde (sucesso): `#22c55e` (exportação, carregamento)
+  - Vermelho (aviso): `#ef4444` (limpeza, erro)
+  - Cinza (fundo): `#1a1a1a`, `#1c1d1d`
+
+---
+
+## 📝 Notas Técnicas
+
+- **Projeção de Saída**: Todas as linhas de sondagem e verificação são geradas em UTM (a projeção é detectada automaticamente conforme a latitude/longitude de entrada).
+- **Precisão de Cálculo**: Operações geométricas utilizam `Shapely` com precisão de ponto flutuante padrão (tolerância ~1e-9).
+- **Performance**: Aplicação otimizada para áreas de até ~10.000 km², com performance linear no número de linhas.
+- **Compatibilidade**: Testado em Windows 10/11 com Python 3.10+. Deve funcionar em Linux e macOS com pequenos ajustes de caminho de ícone.
+
+---
+
+## �👥 Créditos
+
+- **Desenvolvedor Principal:** Lucas Costa
+- **Orientação e Pesquisa:**  Prof. Italo Ferreira, Grupo de Pesquisas em Hidrografia (**GPHIDRO**)
+- **Instituição:** Universidade Federal de Viçosa (**UFV**) – Departamento de Engenharia Civil / Agrimensura e Cartografia
+- **Contexto:** Projeto de Iniciação Científica (IC) – 2025/2026
+
+---
+
+## 📧 Suporte e Contato
+
+Para dúvidas, sugestões ou relato de problemas, abra uma issue no repositório ou entre em contato através do email dacosta.lhm@gmail.com.
+
+---
+
+**Versão:** 1.0  
+**Data de Lançamento:** Setembro de 2025  
+**Licença:** A definir conforme política de código aberto da instituição.
 
