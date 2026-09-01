@@ -4,12 +4,18 @@ import tempfile
 import os
 import functions_tk as f
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-
+from PIL import Image, ImageTk
 class EasyPlanningApp:
     def __init__(self, root):
         self.root = root
         self.root.title("EasyPlanning - Planejamento Hidrográfico")
         self.root.geometry("1300x850")
+        try:
+            icone_img = Image.open("pageIcon.jpg")
+            self.icone_app = ImageTk.PhotoImage(icone_img)
+            self.root.wm_iconphoto(True, self.icone_app)
+        except Exception as e:
+            print(f"Não foi possível carregar o ícone: {e}")
         self.gdf_area = None
         self.gdf_eixo = None
         self.gdf_ls = None
@@ -287,20 +293,31 @@ class EasyPlanningApp:
         if self.pdf_gerado:
             diretorio = filedialog.askdirectory(title="Selecione a pasta para exportação do Pacote")
             if diretorio:
+                # 1. Exporta o PDF
                 caminho_pdf = os.path.join(diretorio, "Relatorio_Planejamento.pdf")
                 with open(caminho_pdf, 'wb') as arquivo_saida:
                     arquivo_saida.write(self.pdf_gerado)
                 
+                # 2. Exporta Linhas de Sondagem (GeoJSON e CSV)
                 if self.gdf_ls is not None and not self.gdf_ls.empty:
-                    caminho_ls = os.path.join(diretorio, "Linhas_Sondagem.geojson")
-                    self.gdf_ls.to_file(caminho_ls, driver="GeoJSON", engine="pyogrio")
+                    caminho_ls_json = os.path.join(diretorio, "Linhas_Sondagem.geojson")
+                    caminho_ls_csv = os.path.join(diretorio, "Linhas_Sondagem.csv")
                     
+                    self.gdf_ls.to_file(caminho_ls_json, driver="GeoJSON", engine="pyogrio")
+                    f.exportar_geometria_csv(self.gdf_ls, caminho_ls_csv, "LS_")
+                    
+                # 3. Exporta Linhas de Verificação (GeoJSON e CSV)
                 if self.gdf_lv is not None and not self.gdf_lv.empty:
-                    caminho_lv = os.path.join(diretorio, "Linhas_Verificacao.geojson")
-                    self.gdf_lv.to_file(caminho_lv, driver="GeoJSON", engine="pyogrio")
+                    caminho_lv_json = os.path.join(diretorio, "Linhas_Verificacao.geojson")
+                    caminho_lv_csv = os.path.join(diretorio, "Linhas_Verificacao.csv")
                     
-                messagebox.showinfo("Exportação Concluída", "Pacote exportado com sucesso no diretório selecionado. Vetores salvos em formato GeoJSON.")
-
+                    self.gdf_lv.to_file(caminho_lv_json, driver="GeoJSON", engine="pyogrio")
+                    f.exportar_geometria_csv(self.gdf_lv, caminho_lv_csv, "LV_")
+                    
+                messagebox.showinfo(
+                    "Exportação Concluída", 
+                    "Pacote exportado com sucesso no diretório selecionado.\nVetores salvos em formatos GeoJSON e CSV estruturado."
+                )
     def exibir_ajuda(self):
         texto = "Procedimento Operacional:\n1. Carregue os arquivos geográficos de Borda e Eixo.\n2. Defina os parâmetros de embarcação e buffer de recuo (opcional).\n3. Selecione o método de cálculo das LS.\n4. Preencha os campos correlatos ao método (os campos irrelevantes serão desabilitados).\n5. Execute o cálculo para ver o mapa e o dashboard, e em seguida exporte o pacote."
         messagebox.showinfo("Ajuda Técnica", texto)

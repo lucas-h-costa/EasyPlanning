@@ -300,3 +300,24 @@ def gerar_relatorio_pdf(resultados, fig, titulo="Relatório Técnico de Planejam
         
     doc.build(elementos)
     return buffer.getvalue()
+
+def exportar_geometria_csv(gdf, caminho_arquivo, prefixo):
+    try:
+        with open(caminho_arquivo, 'w', encoding='utf-8') as f:
+            f.write("nome da linha,E inicio,N inicio,E fim,N fim\n")
+            for i, row in enumerate(gdf.itertuples()):
+                if row.geometry.geom_type == 'LineString':
+                    coords = list(row.geometry.coords)
+                    if len(coords) >= 2:
+                        x_ini, y_ini = coords[0][:2]
+                        x_fim, y_fim = coords[-1][:2]
+                        f.write(f"{prefixo}{i+1},{x_ini:.3f},{y_ini:.3f},{x_fim:.3f},{y_fim:.3f}\n")
+                elif row.geometry.geom_type == 'MultiLineString':
+                    for j, line in enumerate(row.geometry.geoms):
+                        coords = list(line.coords)
+                        if len(coords) >= 2:
+                            x_ini, y_ini = coords[0][:2]
+                            x_fim, y_fim = coords[-1][:2]
+                            f.write(f"{prefixo}{i+1}_{j+1},{x_ini:.3f},{y_ini:.3f},{x_fim:.3f},{y_fim:.3f}\n")
+    except Exception as e:
+        print(f"Erro ao exportar CSV: {e}")
