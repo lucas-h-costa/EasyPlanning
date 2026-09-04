@@ -1,4 +1,4 @@
-# app_tk.py
+
 import customtkinter as ctk
 from tkinter import filedialog, messagebox, Text, Scrollbar
 from tkinter.font import Font
@@ -16,6 +16,7 @@ ctk.set_default_color_theme("blue")
 
 class EasyPlanningApp:
     def __init__(self, root):
+        """Inicializa o estado da aplicação e monta a interface principal."""
         self.root = root
         self.root.title("EasyPlanning ")
         self.root.geometry("1300x850")
@@ -56,6 +57,7 @@ class EasyPlanningApp:
         self.configurar_interface()
 
     def configurar_interface(self):
+        """Cria abas, controles, painel de métricas e mapa interativo."""
         barra_superior = ctk.CTkFrame(self.root, height=60, corner_radius=0, fg_color="#1f538d")
         barra_superior.pack(side='top', fill='x')
         
@@ -176,14 +178,17 @@ class EasyPlanningApp:
         self.map_widget.add_left_click_map_command(self.adicionar_ponto_mapa)
 
     def set_modo_borda(self):
+        """Ativa o modo de desenho do polígono da borda no mapa."""
         self.modo_vetor = 'borda'
         messagebox.showinfo("Modo Borda", "Clique no mapa para desenhar os vértices do polígono da borda.")
 
     def set_modo_eixo(self):
+        """Ativa o modo de desenho da linha do eixo no mapa."""
         self.modo_vetor = 'eixo'
         messagebox.showinfo("Modo Eixo", "Clique no mapa para desenhar a linha do eixo principal.")
 
     def adicionar_ponto_mapa(self, coords):
+        """Adiciona um vértice ao desenho ativo e atualiza sua visualização."""
         if self.modo_vetor == 'borda':
             self.coords_borda.append(coords)
             if self.poly_borda:
@@ -202,6 +207,7 @@ class EasyPlanningApp:
             self.marcadores_vetor.append(marc)
 
     def limpar_mapa_vetor(self):
+        """Remove os desenhos, vértices e marcadores do mapa de vetorização."""
         self.coords_borda.clear()
         self.coords_eixo.clear()
         self.map_widget.delete_all_marker()
@@ -211,6 +217,7 @@ class EasyPlanningApp:
         self.path_eixo = None
 
     def exportar_borda_kml(self):
+        """Salva a borda desenhada no mapa como KML ou GeoJSON."""
         if len(self.coords_borda) < 3:
             messagebox.showwarning("Aviso de Vetorização", "O polígono da borda precisa ser formado por pelo menos 3 pontos.")
             return
@@ -227,6 +234,7 @@ class EasyPlanningApp:
                 messagebox.showerror("Falha na Exportação", f"Erro ao processar arquivo geográfico: {e}")
 
     def exportar_eixo_kml(self):
+        """Salva o eixo desenhado no mapa como KML ou GeoJSON."""
         if len(self.coords_eixo) < 2:
             messagebox.showwarning("Aviso de Vetorização", "A linha do eixo precisa ser formada por pelo menos 2 pontos.")
             return
@@ -242,16 +250,19 @@ class EasyPlanningApp:
             except Exception as e:
                 messagebox.showerror("Falha na Exportação", f"Erro ao processar arquivo geográfico: {e}")
     def adicionar_campo(self, conteiner, rotulo, variavel, chave):
+        """Adiciona um campo de entrada associado a uma variável da interface."""
         ctk.CTkLabel(conteiner, text=rotulo).pack(anchor='w', padx=15, pady=(2,0))
         entrada = ctk.CTkEntry(conteiner, textvariable=variavel, corner_radius=0)
         entrada.pack(fill='x', padx=15)
         self.entradas[chave] = entrada
 
     def atualizar_estado_buffer(self, *args):
+        """Habilita o campo do recuo somente quando o buffer está selecionado."""
         estado = 'normal' if self.variaveis['aplicar_buffer'].get() else 'disabled'
         self.entradas['buffer_m'].configure(state=estado)
 
     def atualizar_estado_campos(self, *args):
+        """Habilita os parâmetros exigidos pelo método de cálculo selecionado."""
         metodo = self.variaveis['metodo'].get()
         
         campos_especificos = ['h_media', 'theta', 'c_mb', 'escala', 'delta_manual', 'r_sss', 'alpha_sss']
@@ -275,6 +286,7 @@ class EasyPlanningApp:
             self.entradas['alpha_sss'].configure(state='normal')
 
     def criar_quadro_dashboard(self, conteiner, titulo, variavel, linha, coluna, columnspan=1):
+        """Cria um cartão do dashboard para exibir uma métrica calculada."""
         quadro = ctk.CTkFrame(conteiner, fg_color="#1a1a1a", corner_radius=0, border_width=1, border_color="#5c7186")
         quadro.grid(row=linha, column=coluna, columnspan=columnspan, sticky="nsew", padx=4, pady=4)
         ctk.CTkLabel(quadro, text=titulo, font=ctk.CTkFont(size=11, weight="bold"), text_color="#a0a0a0").pack(anchor="center", pady=(4, 0))
@@ -282,6 +294,7 @@ class EasyPlanningApp:
         conteiner.grid_columnconfigure(coluna, weight=1)
 
     def carregar_borda(self):
+        """Seleciona, carrega e mede o polígono da área de estudo."""
         caminho = filedialog.askopenfilename(filetypes=[("Arquivos Geográficos", "*.zip *.kml *.geojson")])
         if caminho:
             with tempfile.TemporaryDirectory() as dir_temp:
@@ -295,6 +308,7 @@ class EasyPlanningApp:
                     messagebox.showerror("Erro", str(erro))
 
     def carregar_eixo(self):
+        """Seleciona, carrega e mede o eixo principal do levantamento."""
         caminho = filedialog.askopenfilename(filetypes=[("Arquivos Geográficos", "*.zip *.kml *.geojson")])
         if caminho:
             with tempfile.TemporaryDirectory() as dir_temp:
@@ -308,6 +322,7 @@ class EasyPlanningApp:
                     messagebox.showerror("Erro", str(erro))
 
     def avaliar_geometrias_carregadas(self):
+        """Padroniza o CRS das geometrias e informa a largura transversal estimada."""
         if self.gdf_area is not None and self.gdf_eixo is not None:
             if self.gdf_area.crs != self.gdf_eixo.crs:
                 self.gdf_eixo = self.gdf_eixo.to_crs(self.gdf_area.crs)
@@ -316,6 +331,7 @@ class EasyPlanningApp:
                 messagebox.showinfo("Estimativa Transversal", f"Largura transversal estimada para a área: {largura_efetiva:.2f} m.")
 
     def processar_calculos(self):
+        """Calcula espaçamentos, gera linhas, atualiza o mapa e prepara o relatório."""
         try:
             if self.gdf_area is None or self.gdf_eixo is None:
                 messagebox.showwarning("Geometrias Ausentes", "Carregue os arquivos de Borda e Eixo antes de executar.")
@@ -409,6 +425,7 @@ class EasyPlanningApp:
             messagebox.showerror("Interrupção Crítica", f"Falha na execução matemática ou espacial: {excecao_calculo}")
 
     def exportar_pacote(self):
+        """Exporta o PDF e as camadas planejadas em GeoJSON e CSV."""
         if self.pdf_gerado:
             diretorio = filedialog.askdirectory(title="Selecione a pasta para exportação do Pacote")
             if diretorio:
@@ -431,6 +448,7 @@ class EasyPlanningApp:
                 messagebox.showinfo("Exportação Concluída", "Pacote exportado com sucesso no diretório selecionado. Vetores salvos em formatos GeoJSON e CSV.")
 
     def exibir_ajuda(self):
+        """Abre o manual integrado e renderiza seu conteúdo formatado."""
         diretorio_atual = os.path.dirname(os.path.abspath(__file__))
         caminho_manual = os.path.join(diretorio_atual, "manual.md")
         
@@ -453,8 +471,8 @@ class EasyPlanningApp:
         # Frame para conter o Text e Scrollbar
         frame_texto = ctk.CTkFrame(janela_ajuda, corner_radius=0, fg_color="#1a1a1a")
         frame_texto.pack(fill="both", expand=True, padx=15, pady=15)
-        
-        # Usar tkinter.Text padrão para melhor suporte a formatação
+
+
         caixa_texto = Text(
             frame_texto,
             wrap="word",
@@ -469,8 +487,8 @@ class EasyPlanningApp:
         
         caixa_texto.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
-        
-        # Configurar tags de estilo com fontes
+
+
         fonte_h1 = Font(family="Segoe UI", size=16, weight="bold")
         fonte_h2 = Font(family="Segoe UI", size=13, weight="bold")
         fonte_body = Font(family="Segoe UI", size=11)
@@ -515,7 +533,7 @@ class EasyPlanningApp:
         caixa_texto.configure(state="disabled")
 
     def _renderizar_paragrafo(self, widget, texto):
-        """Renderiza um parágrafo com suporte a **negrito** e *itálico*"""
+        """Renderiza um parágrafo com suporte a negrito e itálico em Markdown."""
         import re
         
         # Padrão para detectar **negrito** e *itálico*
@@ -546,7 +564,8 @@ class EasyPlanningApp:
             widget.insert("end", texto[ultima_pos:], "body")
 
     def exibir_sobre(self):
-        messagebox.showinfo("Sobre o Sistema", "EasyPlanning - Módulo de Planejamento Hidrográfico\nVersão 1.0\nDesenvolvido por Lucas H. Costa\n2026")
+        """Exibe as informações básicas da aplicação e sua versão."""
+        messagebox.showinfo("Sobre o Sistema", "EasyPlanning - Módulo de Planejamento Hidrográfico\nVersão 1.0\nDesenvolvido por Lucas H. Costa\n GPHIDRO \n2026")
 
 if __name__ == "__main__":
     raiz = ctk.CTk()

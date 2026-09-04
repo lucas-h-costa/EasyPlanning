@@ -1,4 +1,3 @@
-# functions_tk.py
 import numpy as np
 import matplotlib.pyplot as plt
 import geopandas as gpd
@@ -14,6 +13,7 @@ from reportlab.lib import colors
 from shapely.geometry import LineString
 
 def carregar_e_projetar(file_path, temp_dir):
+    """Carrega um vetor geográfico e o reprojeta para um sistema métrico UTM."""
     if file_path.endswith('.zip'):
         with zipfile.ZipFile(file_path, 'r') as zip_ref:
             zip_ref.extractall(temp_dir)
@@ -32,6 +32,7 @@ def carregar_e_projetar(file_path, temp_dir):
     return gdf
 
 def calcular_largura_perpendicular(gdf_area, gdf_eixo):
+    """Estima a largura da área no ponto médio do eixo principal."""
     try:
         poligono = gdf_area.geometry.unary_union
         eixo = gdf_eixo.geometry.unary_union
@@ -53,6 +54,7 @@ def calcular_largura_perpendicular(gdf_area, gdf_eixo):
         return 0.0
 
 def calcular_espacamentos(area_m2, comp_eixo_m, metodo, h, theta, c_mb, escala, delta_manual, r_sss, alpha, m_lv):
+    """Calcula os espaçamentos das linhas de sondagem e verificação."""
     a_ha = area_m2 / 10000.0
     l_km = comp_eixo_m / 1000.0
     if l_km == 0:
@@ -85,14 +87,17 @@ def calcular_espacamentos(area_m2, comp_eixo_m, metodo, h, theta, c_mb, escala, 
     return delta_ls, delta_lv
 
 def calcular_estimativa_tempo(l_tot_m, v_nos, t_g_min, n_s):
+    """Estima o tempo de levantamento em horas, incluindo as manobras."""
     if v_nos <= 0:
         return 0.0
     horas = (l_tot_m / (v_nos * 1852.0)) + ((t_g_min / 60.0) * max(0, n_s - 1))
     return horas
 
 def gerar_linhas(gdf_area, gdf_eixo, delta_ls, delta_lv, aplicar_buffer=False, valor_buffer=0.0):
+    """Gera linhas de sondagem perpendiculares e linhas de verificação paralelas."""
     area_geom = gdf_area.geometry.unary_union
     
+    # O buffer negativo cria a área interna usada como limite de segurança.
     if aplicar_buffer and valor_buffer > 0:
         area_recorte = area_geom.buffer(-valor_buffer)
         if area_recorte.is_empty:
@@ -104,6 +109,7 @@ def gerar_linhas(gdf_area, gdf_eixo, delta_ls, delta_lv, aplicar_buffer=False, v
     linhas_ls = []
     linhas_lv = []
     
+    # Cada linha de sondagem é obtida pela interseção de uma perpendicular com a área.
     if delta_ls > 0:
         distancias = np.arange(0, eixo.length, delta_ls)
         for d in distancias:
@@ -126,6 +132,7 @@ def gerar_linhas(gdf_area, gdf_eixo, delta_ls, delta_lv, aplicar_buffer=False, v
             if not intersecao.is_empty:
                 linhas_ls.append(intersecao)
                 
+    # As linhas de verificação são deslocadas simetricamente a partir do eixo.
     if delta_lv > 0:
         intersecao_central = eixo.intersection(area_recorte)
         if not intersecao_central.is_empty:
@@ -159,6 +166,7 @@ def gerar_linhas(gdf_area, gdf_eixo, delta_ls, delta_lv, aplicar_buffer=False, v
     return gdf_ls, gdf_lv
 
 def gerar_grafico(gdf_area, gdf_eixo, gdf_ls, gdf_lv, aplicar_buffer=False, valor_buffer=0.0):
+    """Cria a planta cartográfica com a área, o eixo e as linhas planejadas."""
     fig, ax = plt.subplots(figsize=(6, 5))
     fig.patch.set_facecolor('#ffffff')
     ax.set_facecolor('#ffffff')
@@ -196,6 +204,7 @@ def gerar_grafico(gdf_area, gdf_eixo, gdf_ls, gdf_lv, aplicar_buffer=False, valo
     return fig
 
 def exportar_geometria_csv(gdf, caminho_arquivo, prefixo):
+    """Exporta os pontos inicial e final de cada segmento para um arquivo CSV."""
     try:
         with open(caminho_arquivo, 'w', encoding='utf-8') as f:
             f.write("nome da linha,E inicio,N inicio,E fim,N fim\n")
@@ -217,6 +226,7 @@ def exportar_geometria_csv(gdf, caminho_arquivo, prefixo):
         print(f"Erro ao exportar CSV: {e}")
 
 def gerar_relatorio_pdf(resultados, fig, titulo="Relatório Técnico de Planejamento"):
+    """Monta e retorna o relatório técnico em formato PDF na memória."""
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer, 
