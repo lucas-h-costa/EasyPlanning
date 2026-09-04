@@ -211,7 +211,7 @@ EasyPlanning/
 ## 👥 Créditos
 
 - **Desenvolvedor:** Lucas Costa
-- **Orientação e Pesquisa:** Grupo de Pesquisas em Hidrografia (**GPHIDRO**)
+- **Orientação e Pesquisa:** Prof. Ítalo Ferreira, Grupo de Pesquisas em Hidrografia (**GPHIDRO**)
 - **Instituição:** Universidade Federal de Viçosa (**UFV**) - Departamento de Engenharia Civil / Agrimensura e Cartografia
 - **Contexto:** Projeto de Iniciação Científica (IC)
 

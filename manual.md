@@ -219,6 +219,3 @@ O arquivo serve como registro dos parâmetros utilizados em uma execução. Para
 - **Nenhuma linha gerada:** confira se o eixo cruza a área e se os espaçamentos são positivos.
 - **Erro ao exportar:** confirme se o diretório selecionado permite a gravação dos arquivos.
 
-## 12. Limitações metodológicas
-
-O software pressupõe geometrias válidas, sistema de coordenadas adequado e parâmetros representativos da operação. Não realiza validação hidrográfica dos dados, análise de incerteza, simulação de cobertura acústica, modelagem de profundidade ou otimização da ordem de navegação. A avaliação dos outputs deve incluir comparação com cálculos independentes e inspeção em ferramenta cartográfica ou software de planejamento de linhas.
